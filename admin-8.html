@@ -1,0 +1,2407 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم الموسوعة التاريخية الإسلامية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ============================================================
+   Design tokens
+   ============================================================ */
+:root{
+  --navy:#FAF7EF;
+  --navy-2:#FFFFFF;
+  --navy-3:#F2ECDA;
+  --navy-border:#E7DFC5;
+  --green:#12312B;
+  --green-2:#1C4A3F;
+  --gold:#C6A15B;
+  --gold-bright:#B8874A;
+  --off-white:#1E2A44;
+  --ink:#232E47;
+  --ink-dim:#8D8570;
+  --danger:#C0564B;
+  --ok:#3F8F68;
+  --radius:12px;
+  --shadow:0 10px 28px rgba(40,32,12,.08);
+  --topbar-h:66px;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--navy);
+  color:var(--ink);
+  font-family:'Cairo',sans-serif;
+  min-height:100vh;
+}
+h1,h2,h3,.display{
+  font-family:'Amiri',serif;
+}
+::selection{background:var(--gold);color:var(--ink);}
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+input,textarea,select{font-family:inherit;}
+
+/* Subtle Islamic geometric pattern — used once, as the signature texture */
+.geo-pattern{
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(198,161,91,.16) 1px, transparent 1.4px);
+  background-size:22px 22px;
+}
+.geo-star{
+  position:absolute; inset:0; pointer-events:none; opacity:.08;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C6A15B' stroke-width='1'%3E%3Cpath d='M60 6 L74 40 L110 46 L82 70 L90 106 L60 88 L30 106 L38 70 L10 46 L46 40 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:160px 160px;
+}
+
+/* ============================================================
+   Login screen
+   ============================================================ */
+#login-screen{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;
+  background:radial-gradient(120% 120% at 50% 0%, var(--green) 0%, var(--navy) 55%);
+}
+.login-card{
+  position:relative;z-index:1;
+  width:min(400px,90vw);
+  background:var(--navy-2);
+  border:1px solid var(--navy-border);
+  border-radius:var(--radius);
+  padding:40px 32px;
+  box-shadow:var(--shadow);
+  text-align:center;
+}
+.login-eyebrow{
+  color:var(--gold);
+  letter-spacing:.12em;
+  font-size:12px;
+  font-weight:700;
+}
+.login-card h1{
+  font-size:26px;margin:8px 0 6px;color:var(--off-white);
+}
+.login-card p.sub{color:var(--ink-dim);font-size:14px;margin-bottom:28px;}
+.field{margin-bottom:14px;text-align:right;}
+.field label{display:block;font-size:13px;color:var(--ink-dim);margin-bottom:6px;}
+.field input,.field textarea,.field select{
+  width:100%;
+  background:var(--navy);
+  border:1px solid var(--navy-border);
+  color:var(--ink);
+  border-radius:8px;
+  padding:10px 12px;
+  font-size:14px;
+  outline:none;
+  transition:border-color .15s;
+}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--gold);}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:700;
+  transition:transform .1s, filter .15s;
+}
+.btn:active{transform:translateY(1px);}
+.btn-gold{background:linear-gradient(180deg,#DDB877,var(--gold));color:var(--ink);}
+.btn-gold:hover{filter:brightness(1.06);}
+.btn-block{width:100%;}
+.btn-ghost{background:transparent;border:1px solid var(--navy-border);color:var(--ink);}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold-bright);}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);}
+.btn-danger:hover{background:var(--danger);color:#FFF7F0;}
+.btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;}
+#login-error{color:var(--danger);font-size:13px;margin-top:12px;min-height:16px;}
+
+/* ============================================================
+   Global topbar (logo, notifications, avatar, mobile menu)
+   ============================================================ */
+#topbar-global{
+  display:none;align-items:center;justify-content:space-between;
+  height:var(--topbar-h);padding:0 28px;background:var(--navy-2);
+  border-bottom:1px solid var(--navy-border);position:sticky;top:0;z-index:60;
+}
+#topbar-global.active{display:flex;}
+.topbar-global-left{display:flex;align-items:center;gap:10px;position:relative;}
+.topbar-brand{display:flex;align-items:center;gap:8px;font-family:'Amiri',serif;font-size:22px;font-weight:700;color:var(--ink);}
+.topbar-brand .brand-icon{width:26px;height:26px;color:var(--gold);}
+.topbar-brand .brand-icon svg{width:100%;height:100%;}
+.icon-btn{
+  position:relative;width:38px;height:38px;border-radius:50%;border:1px solid var(--navy-border);
+  background:var(--navy);display:flex;align-items:center;justify-content:center;color:var(--ink);
+}
+.icon-btn:hover{border-color:var(--gold);}
+.icon-btn svg{width:18px;height:18px;}
+.icon-btn .badge{
+  position:absolute;top:-4px;left:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;
+  min-width:17px;height:17px;border-radius:20px;display:flex;align-items:center;justify-content:center;padding:0 3px;
+}
+.hamburger{display:none;}
+.dropdown-panel{
+  position:absolute;top:calc(100% + 10px);left:0;width:280px;background:var(--navy-2);
+  border:1px solid var(--navy-border);border-radius:var(--radius);box-shadow:var(--shadow);
+  z-index:70;display:none;overflow:hidden;
+}
+.dropdown-panel.open{display:block;}
+.dropdown-panel .dd-header{padding:12px 16px;font-size:13px;font-weight:700;color:var(--ink);border-bottom:1px solid var(--navy-border);}
+.dropdown-panel .dd-item{padding:11px 16px;font-size:13px;color:var(--ink);border-bottom:1px solid var(--navy-border);cursor:pointer;}
+.dropdown-panel .dd-item:last-child{border-bottom:none;}
+.dropdown-panel .dd-item:hover{background:var(--navy-3);}
+.dropdown-panel .dd-item .dd-type{font-size:11px;color:var(--gold-bright);font-weight:700;margin-bottom:2px;}
+.dropdown-panel .dd-empty{padding:20px 16px;text-align:center;font-size:12.5px;color:var(--ink-dim);}
+.dropdown-panel .dd-footer{padding:10px 16px;background:var(--navy);}
+.avatar-panel .dd-user{padding:14px 16px;border-bottom:1px solid var(--navy-border);}
+.avatar-panel .dd-user .name{font-weight:700;color:var(--ink);font-size:14px;}
+.avatar-panel .dd-user .email{color:var(--ink-dim);font-size:12px;margin-top:2px;word-break:break-all;}
+
+/* ============================================================
+   App shell
+   ============================================================ */
+#app{display:none;min-height:calc(100vh - var(--topbar-h));grid-template-columns:1fr 250px;}
+#app.active{display:grid;}
+
+/* Sidebar (right, since RTL) */
+#sidebar{
+  background:var(--navy-2);
+  border-left:1px solid var(--navy-border);
+  padding:20px 14px;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+nav#nav-list{position:relative;z-index:1;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;}
+.nav-group-label{font-size:11px;color:var(--ink-dim);letter-spacing:.08em;margin:14px 8px 6px;}
+.nav-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-radius:8px;color:var(--ink-dim);
+  font-size:14px;font-weight:600;cursor:pointer;
+  transition:background .12s,color .12s;
+}
+.nav-item:hover{background:var(--navy-3);color:var(--ink);}
+.nav-item.active{background:linear-gradient(180deg,#DDB877,var(--gold));color:var(--ink);font-weight:800;}
+.nav-item .icon{display:inline-flex;width:18px;height:18px;flex-shrink:0;}
+.nav-item .icon svg{width:100%;height:100%;}
+.nav-item .label-wrap{display:flex;align-items:center;gap:10px;}
+.nav-item .count{
+  font-size:11px;background:var(--navy-3);padding:1px 7px;border-radius:20px;color:var(--ink-dim);
+}
+.nav-item.active .count{background:rgba(255,255,255,.35);color:var(--ink);}
+.nav-item.danger{color:var(--danger);}
+.nav-item.danger:hover{background:rgba(192,86,75,.08);}
+
+/* Main */
+#main{padding:26px 32px;overflow-y:auto;max-height:calc(100vh - var(--topbar-h));}
+#topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;}
+#topbar h1{font-size:24px;margin:0;color:var(--off-white);}
+#topbar .desc{color:var(--ink-dim);font-size:13px;margin-top:4px;}
+
+/* Dashboard */
+.dash-greeting{font-size:23px;margin:0 0 4px;color:var(--off-white);}
+.dash-greeting .wave{display:inline-block;}
+.dash-sub{color:var(--ink-dim);font-size:13.5px;margin-bottom:26px;}
+.section-heading{
+  display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--ink);
+  margin:30px 0 14px;
+}
+.section-heading svg{width:17px;height:17px;color:var(--gold-bright);}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:10px;}
+.stat-card{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  padding:18px 20px;position:relative;overflow:hidden;
+}
+.stat-card .icon-chip{
+  position:absolute;top:16px;left:16px;width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+}
+.stat-card .icon-chip svg{width:19px;height:19px;}
+.stat-card .num{font-family:'Amiri',serif;font-size:32px;color:var(--ink);}
+.stat-card .label{color:var(--ink-dim);font-size:13px;margin-top:4px;}
+
+.dash-grid-2{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;align-items:start;}
+@media (max-width:980px){ .dash-grid-2{grid-template-columns:1fr;} }
+.summary-card{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  padding:22px;
+}
+.summary-body{display:flex;align-items:center;gap:22px;}
+.summary-legend{flex:1;display:flex;flex-direction:column;gap:11px;}
+.legend-row{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--ink);}
+.legend-row .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.legend-row .lbl{flex:1;color:var(--ink-dim);}
+.legend-row .val{font-weight:700;color:var(--ink);}
+.donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;}
+.donut-wrap svg{width:100%;height:100%;transform:rotate(-90deg);}
+.donut-center{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:19px;font-weight:800;color:var(--ink);
+}
+
+.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;}
+.quick-action-btn{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  padding:18px 10px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;transition:border-color .15s,transform .1s;
+}
+.quick-action-btn:hover{border-color:var(--gold);transform:translateY(-2px);}
+.quick-action-btn .icon-chip{position:static;width:40px;height:40px;}
+
+.activity-list{display:flex;flex-direction:column;}
+.activity-item{
+  display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--navy-border);
+}
+.activity-item:last-child{border-bottom:none;}
+.activity-item .icon-chip{position:static;width:36px;height:36px;flex-shrink:0;}
+.activity-item .act-body{flex:1;}
+.activity-item .act-title{font-size:13.5px;color:var(--ink);font-weight:600;}
+.activity-item .act-time{font-size:12px;color:var(--ink-dim);margin-top:2px;display:flex;align-items:center;gap:5px;}
+.activity-item .act-time .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);}
+.activity-item .act-plus{width:26px;height:26px;border-radius:50%;border:1px solid var(--navy-border);display:flex;align-items:center;justify-content:center;color:var(--ink-dim);flex-shrink:0;}
+.activity-item .act-plus svg{width:13px;height:13px;}
+
+/* Settings / Users pages */
+.settings-card{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  padding:24px;max-width:520px;
+}
+.settings-card .field{margin-bottom:16px;}
+.settings-card label{display:block;font-size:13px;color:var(--ink-dim);margin-bottom:6px;}
+
+/* ============================================================
+   Manual date entry (day / month / year — no native OS picker)
+   ============================================================ */
+.date-manual-group{display:flex;gap:8px;}
+.date-manual-group input{text-align:center;}
+.date-manual-group .dm-day,.date-manual-group .dm-month{flex:0 0 72px;}
+.date-manual-group .dm-year{flex:1;}
+.precision-note{font-size:11px;color:var(--ink-dim);margin-top:4px;}
+
+/* ============================================================
+   Person-type conditional sections
+   ============================================================ */
+.vis-hidden{display:none!important;}
+.extra-section-block{margin-bottom:14px;}
+.extra-section-block label{display:block;font-size:13px;color:var(--ink);font-weight:700;margin-bottom:6px;}
+.extra-section-empty{color:var(--ink-dim);font-size:12.5px;padding:8px 2px;}
+
+/* Toolbar */
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap;}
+.search-box{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:8px;
+  padding:9px 14px;color:var(--ink);min-width:240px;font-size:13px;
+}
+
+/* Table */
+.table-wrap{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  overflow-x:auto;
+}
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+thead th{
+  text-align:right;padding:12px 16px;background:var(--navy-3);color:var(--ink-dim);
+  font-weight:700;font-size:12px;letter-spacing:.03em;border-bottom:1px solid var(--navy-border);
+  white-space:nowrap;
+}
+tbody td{padding:12px 16px;border-bottom:1px solid var(--navy-border);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:rgba(198,161,91,.05);}
+.pill{
+  display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;
+}
+.pill-ok{background:rgba(78,158,122,.15);color:var(--ok);}
+.pill-off{background:rgba(147,160,180,.12);color:var(--ink-dim);}
+.row-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
+.empty-state{padding:60px 20px;text-align:center;color:var(--ink-dim);}
+.empty-state .display{color:var(--ink);font-size:18px;margin-bottom:6px;}
+
+/* Tables become stacked cards on narrow screens so action buttons are
+   always visible instead of being clipped or hidden off-screen. */
+@media (max-width:700px){
+  .table-wrap{overflow:visible;border:none;background:transparent;}
+  .table-wrap table, .table-wrap thead, .table-wrap tbody, .table-wrap tr, .table-wrap td{display:block;width:100%;}
+  .table-wrap thead{display:none;}
+  .table-wrap tbody tr{
+    background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+    margin-bottom:12px;padding:6px 14px;
+  }
+  .table-wrap tbody tr:hover{background:var(--navy-2);}
+  .table-wrap td{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:9px 0;border-bottom:1px solid var(--navy-border);text-align:left;
+  }
+  .table-wrap td:last-child{border-bottom:none;}
+  .table-wrap td:before{
+    content:attr(data-label);font-size:11.5px;color:var(--ink-dim);font-weight:700;flex-shrink:0;
+  }
+  .table-wrap td.row-check{flex-direction:row-reverse;justify-content:flex-end;}
+  .table-wrap td.row-check:before{content:"تحديد";}
+  .table-wrap td.actions-cell{padding-top:12px;}
+  .table-wrap td.actions-cell:before{display:none;}
+  .table-wrap td.actions-cell .row-actions{width:100%;justify-content:flex-start;}
+}
+
+/* Modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(5,8,14,.7);backdrop-filter:blur(2px);
+  display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 20px;overflow-y:auto;
+}
+.modal-overlay.active{display:flex;}
+.modal{
+  background:var(--navy-2);border:1px solid var(--navy-border);border-radius:var(--radius);
+  width:min(720px,100%);box-shadow:var(--shadow);
+}
+.modal-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:20px 24px;border-bottom:1px solid var(--navy-border);
+}
+.modal-header h3{margin:0;font-size:19px;color:var(--off-white);}
+.modal-close{background:none;border:none;color:var(--ink-dim);font-size:20px;line-height:1;}
+.modal-close:hover{color:var(--gold-bright);}
+.modal-body{padding:22px 24px;max-height:65vh;overflow-y:auto;}
+.modal-footer{
+  padding:16px 24px;border-top:1px solid var(--navy-border);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;}
+.form-grid .full{grid-column:1/-1;}
+.field textarea{resize:vertical;min-height:70px;}
+.field textarea.long{min-height:140px;}
+.field-check{display:flex;align-items:center;gap:8px;flex-direction:row-reverse;justify-content:flex-end;}
+.field-check input{width:auto;}
+.section-title{
+  grid-column:1/-1;font-size:12px;color:var(--gold);letter-spacing:.08em;
+  border-top:1px solid var(--navy-border);padding-top:14px;margin-top:4px;font-weight:700;
+}
+.multiselect{display:flex;flex-wrap:wrap;gap:8px;}
+.chip-check{
+  display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--navy-border);
+  border-radius:20px;padding:6px 12px;font-size:12.5px;cursor:pointer;
+}
+.chip-check input{width:auto;}
+.chip-check.checked{border-color:var(--gold);color:var(--gold-bright);}
+.image-field img{max-width:120px;max-height:80px;border-radius:6px;margin-top:8px;border:1px solid var(--navy-border);}
+.hint{font-size:11px;color:var(--ink-dim);margin-top:4px;}
+.form-msg{font-size:13px;margin-top:2px;min-height:16px;}
+.form-msg.error{color:var(--danger);}
+.form-msg.ok{color:var(--ok);}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--navy-3);border:1px solid var(--gold);color:var(--off-white);
+  padding:12px 22px;border-radius:8px;font-size:13px;display:none;z-index:100;box-shadow:var(--shadow);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--navy-border);border-radius:8px;}
+
+/* ============================================================
+   Sidebar search
+   ============================================================ */
+.sidebar-search{position:relative;z-index:1;margin-bottom:10px;}
+.sidebar-search input{
+  width:100%;background:var(--navy);border:1px solid var(--navy-border);color:var(--ink);
+  border-radius:8px;padding:8px 12px;font-size:12.5px;outline:none;
+}
+.sidebar-search input:focus{border-color:var(--gold);}
+.nav-item.hidden-by-filter{display:none;}
+
+/* ============================================================
+   Modal tabs (for entities with sectioned forms)
+   ============================================================ */
+.modal-tabs{
+  display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--navy-border);
+  overflow-x:auto;
+}
+.modal-tab-btn{
+  background:none;border:none;color:var(--ink-dim);font-size:13px;font-weight:700;
+  padding:12px 4px;margin-left:18px;white-space:nowrap;border-bottom:2px solid transparent;
+  transition:color .12s,border-color .12s;
+}
+.modal-tab-btn:hover{color:var(--ink);}
+.modal-tab-btn.active{color:var(--gold-bright);border-bottom-color:var(--gold);}
+.modal-tab-btn .tab-flag{
+  display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--danger);
+  margin-inline-start:6px;vertical-align:middle;
+}
+.modal-tab-panel{display:none;}
+.modal-tab-panel.active{display:block;}
+.modal-progress{font-size:11.5px;color:var(--ink-dim);padding:0 24px;margin-top:12px;}
+
+/* ============================================================
+   Field validation state
+   ============================================================ */
+.field.invalid input,.field.invalid textarea,.field.invalid select,.field.invalid .ss-input{
+  border-color:var(--danger)!important;
+}
+.field.invalid label{color:var(--danger);}
+
+/* ============================================================
+   Translatable-field widget (AR / FR / EN in one compact slot)
+   ============================================================ */
+.i18n-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+.i18n-head label{margin-bottom:0;}
+.i18n-tabs{display:flex;gap:2px;background:var(--navy-3);border:1px solid var(--navy-border);border-radius:20px;padding:3px;flex:0 0 auto;}
+.i18n-tab{border:none;background:none;font-size:10.5px;font-weight:800;letter-spacing:.03em;color:var(--ink-dim);
+  padding:4px 12px;border-radius:16px;cursor:pointer;transition:background .15s,color .15s;position:relative;}
+.i18n-tab:hover{color:var(--ink);}
+.i18n-tab.active{background:var(--gold);color:var(--green);}
+.i18n-tab.has-content::after{content:"";position:absolute;top:3px;left:4px;width:5px;height:5px;border-radius:50%;background:var(--ok);}
+.i18n-tab.active.has-content::after{background:var(--green);}
+.i18n-pane{display:none;}
+.i18n-pane.active{display:block;}
+
+/* ============================================================
+   Searchable relation select
+   ============================================================ */
+.ss-wrap{position:relative;}
+.ss-input{
+  width:100%;background:var(--navy);border:1px solid var(--navy-border);color:var(--ink);
+  border-radius:8px;padding:10px 12px;font-size:14px;outline:none;transition:border-color .15s;
+}
+.ss-input:focus{border-color:var(--gold);}
+.ss-dropdown{
+  position:absolute;top:calc(100% + 4px);right:0;left:0;z-index:20;
+  background:var(--navy-3);border:1px solid var(--navy-border);border-radius:8px;
+  max-height:220px;overflow-y:auto;box-shadow:var(--shadow);display:none;
+}
+.ss-dropdown.open{display:block;}
+.ss-option{padding:9px 12px;font-size:13.5px;cursor:pointer;color:var(--ink);}
+.ss-option:hover,.ss-option.hl{background:var(--navy-border);}
+.ss-option.clear{color:var(--ink-dim);border-bottom:1px solid var(--navy-border);}
+.ss-empty{padding:9px 12px;font-size:13px;color:var(--ink-dim);}
+
+/* ============================================================
+   Image dropzone
+   ============================================================ */
+.dropzone{
+  border:1px dashed var(--navy-border);border-radius:8px;padding:14px;text-align:center;
+  cursor:pointer;transition:border-color .15s,background .15s;position:relative;
+}
+.dropzone:hover,.dropzone.dragover{border-color:var(--gold);background:rgba(198,161,91,.06);}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.dropzone .dz-text{font-size:12.5px;color:var(--ink-dim);}
+.dropzone .dz-text strong{color:var(--gold-bright);}
+.dropzone img.preview{max-width:140px;max-height:90px;border-radius:6px;margin-top:8px;border:1px solid var(--navy-border);}
+
+/* ============================================================
+   Bulk actions
+   ============================================================ */
+.bulk-toolbar{
+  display:flex;align-items:center;gap:12px;background:var(--navy-3);border:1px solid var(--gold);
+  border-radius:8px;padding:9px 16px;margin-bottom:14px;font-size:13px;
+}
+.bulk-toolbar .count{color:var(--gold-bright);font-weight:700;}
+.bulk-toolbar .spacer{flex:1;}
+.row-check{width:36px;text-align:center;}
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.pagination{display:flex;align-items:center;justify-content:center;gap:14px;padding:16px;font-size:13px;color:var(--ink-dim);}
+.pagination button:disabled{opacity:.4;cursor:default;}
+
+/* ============================================================
+   Loading skeleton
+   ============================================================ */
+.skeleton-bar{
+  height:13px;border-radius:4px;
+  background:linear-gradient(90deg,var(--navy-3) 25%,var(--navy-border) 37%,var(--navy-3) 63%);
+  background-size:400% 100%;animation:skeleton-loading 1.4s ease infinite;
+}
+@keyframes skeleton-loading{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.auto-badge{font-size:10px;color:var(--ok);margin-inline-start:6px;font-weight:400;}
+
+/* Responsive */
+@media (max-width:860px){
+  .hamburger{display:flex;}
+  #app.active{display:block;}
+  #sidebar{
+    border-left:none;position:fixed;top:var(--topbar-h);right:0;bottom:0;width:240px;
+    transform:translateX(100%);transition:transform .2s;z-index:55;box-shadow:var(--shadow);
+  }
+  body.sidebar-open #sidebar{transform:translateX(0);}
+  body.sidebar-open::after{
+    content:"";position:fixed;inset:var(--topbar-h) 0 0 0;background:rgba(10,10,5,.35);z-index:50;
+  }
+  #main{padding:18px;max-height:none;}
+  .form-grid{grid-template-columns:1fr;}
+  .modal-tabs{padding:0 14px;}
+  .dropdown-panel{width:240px;left:auto;right:0;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     GLOBAL TOPBAR
+     ============================================================ -->
+<div id="topbar-global">
+  <div class="topbar-global-left">
+    <button class="icon-btn" id="notif-btn" title="الإشعارات"></button>
+    <div class="dropdown-panel" id="notif-dropdown">
+      <div class="dd-header">المسودات غير المنشورة</div>
+      <div id="notif-list"></div>
+    </div>
+    <button class="icon-btn" id="avatar-btn" title="الحساب"></button>
+    <div class="dropdown-panel avatar-panel" id="avatar-dropdown">
+      <div class="dd-user">
+        <div class="name" id="avatar-name">—</div>
+        <div class="email" id="avatar-email">—</div>
+      </div>
+      <div class="dd-item" id="avatar-settings-link">الإعدادات</div>
+      <div class="dd-item" id="avatar-logout-link" style="color:var(--danger);">تسجيل الخروج</div>
+    </div>
+  </div>
+  <div class="topbar-brand"><span class="brand-icon" id="brand-icon-slot"></span> منارة</div>
+  <button class="icon-btn hamburger" id="mobile-menu-btn" title="القائمة"></button>
+</div>
+
+<!-- ============================================================
+     LOGIN
+     ============================================================ -->
+<div id="login-screen">
+  <div class="geo-star"></div>
+  <div class="login-card">
+    <div class="login-eyebrow">لوحة التحكم · ADMIN</div>
+    <h1 class="display">الموسوعة التاريخية الإسلامية</h1>
+    <p class="sub">سجّل الدخول بحساب المشرف للوصول إلى لوحة التحكم</p>
+    <div class="field">
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="login-email" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input type="password" id="login-password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-gold btn-block" id="login-btn">دخول</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     APP SHELL
+     ============================================================ -->
+<div id="app">
+  <main id="main">
+    <div id="topbar">
+      <div>
+        <h1 id="page-title">لوحة المعلومات</h1>
+        <div class="desc" id="page-desc">نظرة عامة على محتوى الموسوعة</div>
+      </div>
+      <button class="btn btn-gold" id="add-btn" style="display:none;">+ إضافة عنصر جديد</button>
+    </div>
+    <div id="content"></div>
+  </main>
+
+  <aside id="sidebar">
+    <div class="geo-star"></div>
+    <div class="sidebar-search">
+      <input type="text" id="sidebar-search-input" placeholder="بحث في الأقسام...">
+    </div>
+    <nav id="nav-list"></nav>
+  </aside>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">إضافة</h3>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-tabs" id="modal-tabs" style="display:none;"></div>
+    <div class="modal-progress" id="modal-progress" style="display:none;"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <div class="form-msg" id="modal-msg"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" id="modal-cancel">إلغاء</button>
+        <button class="btn btn-gold btn-sm" id="modal-save">حفظ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   Supabase client
+   ============================================================ */
+const SUPABASE_URL = "https://gogkgdplalyvgpggwvqj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvZ2tnZHBsYWx5dmdwZ2d3dnFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNzczMTAsImV4cCI6MjA5NzY1MzMxMH0.e4goNLCGah8iUcYM10SR3bdsTE7mgketShWFLTxojI0";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const STORAGE_BUCKET = "media-library";
+
+/* ============================================================
+   Entity configuration — this drives the entire CRUD UI.
+   Add a new entity here and the sidebar + list + form all follow,
+   with no other code changes needed for standard fields.
+   ============================================================ */
+const ENTITIES = {
+  eras: {
+    label: "العصور", table: "eras", order: "sort_order", icon:"landmark", color:"#B8874A", colorBg:"rgba(198,161,91,.16)",
+    titleField: "name_ar", group: "المحتوى الأساسي",
+    listColumns: [
+      {key:"name_ar", label:"الاسم"},
+      {key:"start_year_ce", label:"من"},
+      {key:"end_year_ce", label:"إلى"},
+    ],
+    fields: [
+      {key:"name_ar", label:"الاسم", type:"text", required:true, i18nGroup:"name", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true, hint:"معرف فريد بالإنجليزية، مثال: umayyad-era"},
+      {key:"name_fr", label:"الاسم (فرنسي)", type:"text", i18nGroup:"name", lang:"fr"},
+      {key:"name_en", label:"الاسم (إنجليزي)", type:"text", i18nGroup:"name", lang:"en"},
+      {key:"theme_color", label:"لون العصر", type:"color"},
+      {key:"cover_image_url", label:"صورة الغلاف", type:"image"},
+      {key:"description_short", label:"وصف مختصر", type:"textarea", i18nGroup:"description_short", lang:"ar"},
+      {key:"description_short_fr", label:"وصف مختصر (فرنسي)", type:"textarea", i18nGroup:"description_short", lang:"fr"},
+      {key:"description_short_en", label:"وصف مختصر (إنجليزي)", type:"textarea", i18nGroup:"description_short", lang:"en"},
+      {key:"description_long", label:"وصف طويل", type:"textarea-long", full:true, i18nGroup:"description_long", lang:"ar"},
+      {key:"description_long_fr", label:"وصف طويل (فرنسي)", type:"textarea-long", full:true, i18nGroup:"description_long", lang:"fr"},
+      {key:"description_long_en", label:"وصف طويل (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"description_long", lang:"en"},
+      {key:"start_year_ce", label:"سنة البداية (م)", type:"number"},
+      {key:"end_year_ce", label:"سنة النهاية (م)", type:"number"},
+      {key:"start_year_hijri", label:"سنة البداية (هـ)", type:"number"},
+      {key:"end_year_hijri", label:"سنة النهاية (هـ)", type:"number"},
+      {key:"sort_order", label:"ترتيب العرض", type:"number"},
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  dynasties: {
+    label: "الدول والسلالات", table: "dynasties", order: "sort_order", icon:"flag", color:"#1C4A3F", colorBg:"rgba(28,74,63,.12)",
+    titleField: "name_ar", group: "المحتوى الأساسي",
+    listColumns: [
+      {key:"name_ar", label:"الاسم"},
+      {key:"era_id", label:"العصر", relation:"eras"},
+      {key:"start_year_ce", label:"من"},
+      {key:"end_year_ce", label:"إلى"},
+    ],
+    fields: [
+      {key:"name_ar", label:"الاسم", type:"text", required:true, i18nGroup:"name", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"name_fr", label:"الاسم (فرنسي)", type:"text", i18nGroup:"name", lang:"fr"},
+      {key:"name_en", label:"الاسم (إنجليزي)", type:"text", i18nGroup:"name", lang:"en"},
+      {key:"era_id", label:"العصر", type:"select", relation:"eras"},
+      {key:"capital_city_id", label:"العاصمة", type:"select", relation:"cities"},
+      {key:"cover_image_url", label:"صورة الغلاف", type:"image"},
+      {key:"description", label:"الوصف", type:"textarea-long", full:true, i18nGroup:"description", lang:"ar"},
+      {key:"description_fr", label:"الوصف (فرنسي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"fr"},
+      {key:"description_en", label:"الوصف (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"en"},
+      {key:"start_year_ce", label:"سنة البداية (م)", type:"number"},
+      {key:"end_year_ce", label:"سنة النهاية (م)", type:"number"},
+      {key:"sort_order", label:"ترتيب العرض", type:"number"},
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  cities: {
+    label: "المدن", table: "cities", order: "name_ar", icon:"mapPin", color:"#B5563F", colorBg:"rgba(181,86,63,.12)",
+    titleField: "name_ar", group: "المحتوى الأساسي",
+    listColumns: [
+      {key:"name_ar", label:"الاسم"},
+      {key:"modern_country", label:"الدولة الحالية"},
+    ],
+    fields: [
+      {key:"name_ar", label:"الاسم", type:"text", required:true, i18nGroup:"name", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"name_fr", label:"الاسم (فرنسي)", type:"text", i18nGroup:"name", lang:"fr"},
+      {key:"name_en", label:"الاسم (إنجليزي)", type:"text", i18nGroup:"name", lang:"en"},
+      {key:"modern_country", label:"الدولة الحالية", type:"text"},
+      {key:"main_image_url", label:"الصورة الرئيسية", type:"image"},
+      {key:"description", label:"الوصف", type:"textarea-long", full:true, i18nGroup:"description", lang:"ar"},
+      {key:"description_fr", label:"الوصف (فرنسي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"fr"},
+      {key:"description_en", label:"الوصف (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"en"},
+      {key:"latitude", label:"خط العرض", type:"number", step:"any"},
+      {key:"longitude", label:"خط الطول", type:"number", step:"any"},
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  people: {
+    label: "الشخصيات والحكام", table: "people", order: "full_name_ar", icon:"user", color:"#2A3C63", colorBg:"rgba(42,60,99,.10)",
+    titleField: "full_name_ar", group: "الشخصيات",
+    listColumns: [
+      {key:"display_name_ar", label:"الاسم", fallback:"full_name_ar"},
+      {key:"era_id", label:"العصر", relation:"eras"},
+      {key:"is_ruler", label:"حاكم؟", boolean:true},
+    ],
+    fields: [
+      {key:"full_name_ar", label:"الاسم الكامل", type:"text", required:true, i18nGroup:"full_name", lang:"ar"},
+      {key:"display_name_ar", label:"الاسم المشهور", type:"text"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"title_ar", label:"اللقب", type:"text", i18nGroup:"title", lang:"ar"},
+      {key:"full_name_fr", label:"الاسم (فرنسي)", type:"text", i18nGroup:"full_name", lang:"fr"},
+      {key:"full_name_en", label:"الاسم (إنجليزي)", type:"text", i18nGroup:"full_name", lang:"en"},
+      {key:"title_fr", label:"اللقب (فرنسي)", type:"text", i18nGroup:"title", lang:"fr"},
+      {key:"title_en", label:"اللقب (إنجليزي)", type:"text", i18nGroup:"title", lang:"en"},
+      {key:"gender", label:"الجنس", type:"select-static", options:[["male","ذكر"],["female","أنثى"]]},
+      {key:"main_image_url", label:"الصورة الرئيسية", type:"image"},
+      {key:"era_id", label:"العصر", type:"select", relation:"eras"},
+      {key:"dynasty_id", label:"الدولة / السلالة", type:"select", relation:"dynasties"},
+      {key:"person_type_ids", label:"نوع الشخصية", type:"multiselect", relation:"person_types", junction:"person_person_types", junctionKey:"person_type_id"},
+      {key:"is_early_islam_figure", label:"من الصحابة أو عاصر بداية الإسلام (يُظهر قسمي الإسلام والهجرة)", type:"checkbox"},
+
+      {key:"__sec1", label:"الحياة والوفاة", type:"section"},
+      {key:"birth_date", label:"تاريخ الميلاد", type:"date-manual", precisionKey:"birth_date_precision"},
+      {key:"birth_year_hijri", label:"سنة الميلاد الهجرية", type:"number"},
+      {key:"birth_place_city_id", label:"مكان الميلاد", type:"select", relation:"cities"},
+      {key:"death_date", label:"تاريخ الوفاة", type:"date-manual", precisionKey:"death_date_precision"},
+      {key:"death_year_hijri", label:"سنة الوفاة الهجرية", type:"number"},
+      {key:"death_place_city_id", label:"مكان الوفاة", type:"select", relation:"cities"},
+
+      {key:"__sec2", label:"النشأة والإسلام والهجرة", type:"section"},
+      {key:"life_before_power", label:"النشأة", type:"textarea-long", full:true, i18nGroup:"life_before_power", lang:"ar"},
+      {key:"life_before_power_fr", label:"النشأة (فرنسي)", type:"textarea-long", full:true, i18nGroup:"life_before_power", lang:"fr"},
+      {key:"life_before_power_en", label:"النشأة (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"life_before_power", lang:"en"},
+      {key:"islam_story", label:"الإسلام", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"islam_story", lang:"ar"},
+      {key:"islam_story_fr", label:"الإسلام (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"islam_story", lang:"fr"},
+      {key:"islam_story_en", label:"الإسلام (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"islam_story", lang:"en"},
+      {key:"hijra_details", label:"الهجرة", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"hijra_details", lang:"ar"},
+      {key:"hijra_details_fr", label:"الهجرة (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"hijra_details", lang:"fr"},
+      {key:"hijra_details_en", label:"الهجرة (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"early_islam", i18nGroup:"hijra_details", lang:"en"},
+
+      {key:"__sec3", label:"الحكم / الخلافة (إن وُجدت)", type:"section"},
+      {key:"is_ruler", label:"شخصية حاكمة", type:"checkbox"},
+      {key:"reign_start", label:"بداية الحكم", type:"date-manual", precisionKey:"reign_start_precision", visibilityGroup:"ruler"},
+      {key:"reign_start_year_hijri", label:"بداية الحكم (هجري)", type:"number", visibilityGroup:"ruler"},
+      {key:"reign_end", label:"نهاية الحكم", type:"date-manual", precisionKey:"reign_end_precision", visibilityGroup:"ruler"},
+      {key:"reign_end_year_hijri", label:"نهاية الحكم (هجري)", type:"number", visibilityGroup:"ruler"},
+      {key:"reign_order", label:"ترتيب الحاكم", type:"number", visibilityGroup:"ruler"},
+      {key:"rise_to_power", label:"طريقة وصوله إلى الحكم (الخلافة)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"rise_to_power", lang:"ar"},
+      {key:"rise_to_power_fr", label:"طريقة وصوله (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"rise_to_power", lang:"fr"},
+      {key:"rise_to_power_en", label:"طريقة وصوله (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"rise_to_power", lang:"en"},
+      {key:"major_decisions", label:"أهم قراراته", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"major_decisions", lang:"ar"},
+      {key:"major_decisions_fr", label:"أهم قراراته (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"major_decisions", lang:"fr"},
+      {key:"major_decisions_en", label:"أهم قراراته (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"major_decisions", lang:"en"},
+      {key:"achievements", label:"الإنجازات", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"achievements", lang:"ar"},
+      {key:"achievements_fr", label:"الإنجازات (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"achievements", lang:"fr"},
+      {key:"achievements_en", label:"الإنجازات (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"achievements", lang:"en"},
+      {key:"political_relations", label:"العلاقات السياسية", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"political_relations", lang:"ar"},
+      {key:"political_relations_fr", label:"العلاقات السياسية (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"political_relations", lang:"fr"},
+      {key:"political_relations_en", label:"العلاقات السياسية (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"political_relations", lang:"en"},
+      {key:"military_relations", label:"العلاقات العسكرية", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"military_relations", lang:"ar"},
+      {key:"military_relations_fr", label:"العلاقات العسكرية (فرنسي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"military_relations", lang:"fr"},
+      {key:"military_relations_en", label:"العلاقات العسكرية (إنجليزي)", type:"textarea-long", full:true, visibilityGroup:"ruler", i18nGroup:"military_relations", lang:"en"},
+
+      {key:"__sec4", label:"أقسام خاصة بنوع الشخصية", type:"section"},
+      {key:"extra_sections", label:"", type:"people-extra-sections", full:true},
+
+      {key:"__sec5", label:"الوفاة والأثر", type:"section"},
+      {key:"short_bio", label:"سيرة مختصرة", type:"textarea", full:true, i18nGroup:"short_bio", lang:"ar"},
+      {key:"short_bio_fr", label:"سيرة مختصرة (فرنسي)", type:"textarea", full:true, i18nGroup:"short_bio", lang:"fr"},
+      {key:"short_bio_en", label:"سيرة مختصرة (إنجليزي)", type:"textarea", full:true, i18nGroup:"short_bio", lang:"en"},
+      {key:"long_bio", label:"السيرة الطويلة", type:"textarea-long", full:true, i18nGroup:"long_bio", lang:"ar"},
+      {key:"long_bio_fr", label:"السيرة الطويلة (فرنسي)", type:"textarea-long", full:true, i18nGroup:"long_bio", lang:"fr"},
+      {key:"long_bio_en", label:"السيرة الطويلة (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"long_bio", lang:"en"},
+      {key:"death_details", label:"تفاصيل الوفاة", type:"textarea", full:true, i18nGroup:"death_details", lang:"ar"},
+      {key:"death_details_fr", label:"تفاصيل الوفاة (فرنسي)", type:"textarea", full:true, i18nGroup:"death_details", lang:"fr"},
+      {key:"death_details_en", label:"تفاصيل الوفاة (إنجليزي)", type:"textarea", full:true, i18nGroup:"death_details", lang:"en"},
+      {key:"legacy", label:"الأثر والإرث", type:"textarea", full:true, i18nGroup:"legacy", lang:"ar"},
+      {key:"legacy_fr", label:"الأثر والإرث (فرنسي)", type:"textarea", full:true, i18nGroup:"legacy", lang:"fr"},
+      {key:"legacy_en", label:"الأثر والإرث (إنجليزي)", type:"textarea", full:true, i18nGroup:"legacy", lang:"en"},
+
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  battles: {
+    label: "المعارك", table: "battles", order: "battle_date", icon:"swords", color:"#A23B3B", colorBg:"rgba(162,59,59,.12)",
+    titleField: "name_ar", group: "الأحداث",
+    listColumns: [
+      {key:"name_ar", label:"الاسم"},
+      {key:"era_id", label:"العصر", relation:"eras"},
+      {key:"battle_date", label:"التاريخ"},
+    ],
+    fields: [
+      {key:"name_ar", label:"اسم المعركة", type:"text", required:true, i18nGroup:"name", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"alt_name_ar", label:"اسم بديل", type:"text"},
+      {key:"name_fr", label:"الاسم (فرنسي)", type:"text", i18nGroup:"name", lang:"fr"},
+      {key:"name_en", label:"الاسم (إنجليزي)", type:"text", i18nGroup:"name", lang:"en"},
+      {key:"main_image_url", label:"الصورة الرئيسية", type:"image"},
+      {key:"era_id", label:"العصر", type:"select", relation:"eras"},
+      {key:"city_id", label:"المكان", type:"select", relation:"cities"},
+      {key:"battle_date", label:"التاريخ", type:"date-manual", precisionKey:"battle_date_precision"},
+      {key:"year_hijri", label:"السنة الهجرية", type:"number"},
+      {key:"latitude", label:"خط العرض", type:"number", step:"any"},
+      {key:"longitude", label:"خط الطول", type:"number", step:"any"},
+      {key:"dynasty_ids", label:"الأطراف المشاركة (الدول)", type:"multiselect", relation:"dynasties", junction:"battle_dynasties", junctionKey:"dynasty_id"},
+
+      {key:"__sec1", label:"التفاصيل", type:"section"},
+      {key:"cause", label:"سبب المعركة", type:"textarea", full:true, i18nGroup:"cause", lang:"ar"},
+      {key:"cause_fr", label:"سبب المعركة (فرنسي)", type:"textarea", full:true, i18nGroup:"cause", lang:"fr"},
+      {key:"cause_en", label:"سبب المعركة (إنجليزي)", type:"textarea", full:true, i18nGroup:"cause", lang:"en"},
+      {key:"prelude", label:"الأحداث التي سبقت المعركة", type:"textarea", full:true, i18nGroup:"prelude", lang:"ar"},
+      {key:"prelude_fr", label:"الأحداث السابقة (فرنسي)", type:"textarea", full:true, i18nGroup:"prelude", lang:"fr"},
+      {key:"prelude_en", label:"الأحداث السابقة (إنجليزي)", type:"textarea", full:true, i18nGroup:"prelude", lang:"en"},
+      {key:"details", label:"تفاصيل المعركة", type:"textarea-long", full:true, i18nGroup:"details", lang:"ar"},
+      {key:"details_fr", label:"تفاصيل المعركة (فرنسي)", type:"textarea-long", full:true, i18nGroup:"details", lang:"fr"},
+      {key:"details_en", label:"تفاصيل المعركة (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"details", lang:"en"},
+      {key:"result", label:"النتيجة", type:"textarea", full:true, i18nGroup:"result", lang:"ar"},
+      {key:"result_fr", label:"النتيجة (فرنسي)", type:"textarea", full:true, i18nGroup:"result", lang:"fr"},
+      {key:"result_en", label:"النتيجة (إنجليزي)", type:"textarea", full:true, i18nGroup:"result", lang:"en"},
+      {key:"casualties", label:"الخسائر", type:"textarea", full:true, i18nGroup:"casualties", lang:"ar"},
+      {key:"casualties_fr", label:"الخسائر (فرنسي)", type:"textarea", full:true, i18nGroup:"casualties", lang:"fr"},
+      {key:"casualties_en", label:"الخسائر (إنجليزي)", type:"textarea", full:true, i18nGroup:"casualties", lang:"en"},
+      {key:"historical_importance", label:"الأهمية التاريخية", type:"textarea-long", full:true, i18nGroup:"historical_importance", lang:"ar"},
+      {key:"historical_importance_fr", label:"الأهمية التاريخية (فرنسي)", type:"textarea-long", full:true, i18nGroup:"historical_importance", lang:"fr"},
+      {key:"historical_importance_en", label:"الأهمية التاريخية (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"historical_importance", lang:"en"},
+      {key:"political_results", label:"النتائج السياسية", type:"textarea", full:true, i18nGroup:"political_results", lang:"ar"},
+      {key:"political_results_fr", label:"النتائج السياسية (فرنسي)", type:"textarea", full:true, i18nGroup:"political_results", lang:"fr"},
+      {key:"political_results_en", label:"النتائج السياسية (إنجليزي)", type:"textarea", full:true, i18nGroup:"political_results", lang:"en"},
+      {key:"military_results", label:"النتائج العسكرية", type:"textarea", full:true, i18nGroup:"military_results", lang:"ar"},
+      {key:"military_results_fr", label:"النتائج العسكرية (فرنسي)", type:"textarea", full:true, i18nGroup:"military_results", lang:"fr"},
+      {key:"military_results_en", label:"النتائج العسكرية (إنجليزي)", type:"textarea", full:true, i18nGroup:"military_results", lang:"en"},
+
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  events: {
+    label: "الأحداث التاريخية", table: "events", order: "event_date", icon:"calendar", color:"#6B5B95", colorBg:"rgba(107,91,149,.12)",
+    titleField: "title_ar", group: "الأحداث",
+    listColumns: [
+      {key:"title_ar", label:"العنوان"},
+      {key:"era_id", label:"العصر", relation:"eras"},
+      {key:"event_date", label:"التاريخ"},
+    ],
+    fields: [
+      {key:"title_ar", label:"العنوان", type:"text", required:true, i18nGroup:"title", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"title_fr", label:"العنوان (فرنسي)", type:"text", i18nGroup:"title", lang:"fr"},
+      {key:"title_en", label:"العنوان (إنجليزي)", type:"text", i18nGroup:"title", lang:"en"},
+      {key:"main_image_url", label:"الصورة الرئيسية", type:"image"},
+      {key:"era_id", label:"العصر", type:"select", relation:"eras"},
+      {key:"city_id", label:"المكان", type:"select", relation:"cities"},
+      {key:"event_date", label:"التاريخ", type:"date-manual", precisionKey:"event_date_precision"},
+      {key:"year_hijri", label:"السنة الهجرية", type:"number"},
+      {key:"tags", label:"الوسوم (Tags)", type:"tags", full:true, hint:"افصل بينها بفاصلة: مثال: خلافة, فتح, أندلس"},
+      {key:"short_description", label:"وصف مختصر", type:"textarea", full:true, i18nGroup:"short_description", lang:"ar"},
+      {key:"short_description_fr", label:"وصف مختصر (فرنسي)", type:"textarea", full:true, i18nGroup:"short_description", lang:"fr"},
+      {key:"short_description_en", label:"وصف مختصر (إنجليزي)", type:"textarea", full:true, i18nGroup:"short_description", lang:"en"},
+      {key:"long_article", label:"المقالة الطويلة", type:"textarea-long", full:true, i18nGroup:"long_article", lang:"ar"},
+      {key:"long_article_fr", label:"المقالة الطويلة (فرنسي)", type:"textarea-long", full:true, i18nGroup:"long_article", lang:"fr"},
+      {key:"long_article_en", label:"المقالة الطويلة (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"long_article", lang:"en"},
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  books: {
+    label: "الكتب والمصادر", table: "books", order: "title_ar", icon:"book", color:"#3F6B4F", colorBg:"rgba(63,107,79,.12)",
+    titleField: "title_ar", group: "المكتبة",
+    listColumns: [
+      {key:"title_ar", label:"العنوان"},
+      {key:"author_name", label:"المؤلف"},
+      {key:"era_id", label:"العصر", relation:"eras"},
+    ],
+    fields: [
+      {key:"title_ar", label:"العنوان", type:"text", required:true, i18nGroup:"title", lang:"ar"},
+      {key:"slug", label:"Slug", type:"text", required:true},
+      {key:"title_fr", label:"العنوان (فرنسي)", type:"text", i18nGroup:"title", lang:"fr"},
+      {key:"title_en", label:"العنوان (إنجليزي)", type:"text", i18nGroup:"title", lang:"en"},
+      {key:"author_name", label:"المؤلف", type:"text"},
+      {key:"era_id", label:"العصر", type:"select", relation:"eras"},
+      {key:"cover_image_url", label:"صورة الغلاف", type:"image"},
+      {key:"file_url", label:"ملف الكتاب (PDF)", type:"image", accept:".pdf", hint:"رفع ملف PDF إلى مكتبة الوسائط"},
+      {key:"description", label:"الوصف", type:"textarea-long", full:true, i18nGroup:"description", lang:"ar"},
+      {key:"description_fr", label:"الوصف (فرنسي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"fr"},
+      {key:"description_en", label:"الوصف (إنجليزي)", type:"textarea-long", full:true, i18nGroup:"description", lang:"en"},
+      {key:"is_published", label:"منشور على الموقع", type:"checkbox"},
+    ]
+  },
+  sources: {
+    label: "المصادر التاريخية", table: "sources", order: "title", icon:"fileText", color:"#5C6B7A", colorBg:"rgba(92,107,122,.12)",
+    titleField: "title", group: "المكتبة", noPublish:true,
+    listColumns: [
+      {key:"title", label:"العنوان"},
+      {key:"author", label:"المؤلف"},
+    ],
+    fields: [
+      {key:"title", label:"العنوان", type:"text", required:true},
+      {key:"author", label:"المؤلف", type:"text"},
+      {key:"publisher", label:"الناشر", type:"text"},
+      {key:"url", label:"رابط", type:"text"},
+      {key:"notes", label:"ملاحظات", type:"textarea", full:true},
+    ]
+  },
+};
+
+const RELATION_LABEL_FIELD = {eras:"name_ar", dynasties:"name_ar", cities:"name_ar", person_types:"label_ar"};
+
+/* ============================================================
+   Icon set (inline SVGs — no external icon font dependency)
+   ============================================================ */
+const ICONS = {
+  home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>`,
+  landmark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 21 8 3 8"/></svg>`,
+  flag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>`,
+  mapPin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  swords: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  book: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  fileText: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+  image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  logOut: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+  menu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`,
+  star: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.3 6.6H21l-5.6 4.1 2.1 6.6L12 15.2l-5.5 4.1 2.1-6.6L3 8.6h6.7z"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  pieChart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`,
+  zap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+};
+
+function iconChip(iconKey, color, colorBg, size){
+  const s = size || 38;
+  return `<div class="icon-chip" style="width:${s}px;height:${s}px;background:${colorBg||'rgba(198,161,91,.15)'};color:${color||'var(--gold-bright)'};">${ICONS[iconKey]||ICONS.star}</div>`;
+}
+
+const DASHBOARD_SUMMARY_KEYS = ["eras","people","battles","events","books"];
+
+/* ============================================================
+   Person-type-specific extra sections (stored in people.extra_sections JSONB)
+   Keyed by person_types.key — shown as a union when a person has
+   multiple types. Caliph/ruler/emir use the dedicated "الحكم" fields
+   instead (see people.fields __sec3), so they're not listed here.
+   ============================================================ */
+const PERSON_TYPE_SECTIONS = {
+  military_leader: [
+    {key:"military_career", label:"المسيرة العسكرية"},
+    {key:"battles_won", label:"الانتصارات"},
+    {key:"related_leaders", label:"القادة المرتبطون به"},
+  ],
+  scholar: [
+    {key:"seeking_knowledge", label:"طلب العلم"},
+    {key:"teachers", label:"الشيوخ"},
+    {key:"students", label:"التلاميذ"},
+    {key:"specialty", label:"التخصص"},
+    {key:"works", label:"المؤلفات"},
+    {key:"scholars_sayings", label:"أقوال العلماء فيه"},
+  ],
+  jurist: [
+    {key:"madhhab", label:"المذهب"},
+    {key:"teachers", label:"الشيوخ"},
+    {key:"students", label:"التلاميذ"},
+    {key:"fiqh_issues", label:"المسائل الفقهية"},
+    {key:"works", label:"المؤلفات"},
+    {key:"influence", label:"آثاره"},
+  ],
+  hadith_scholar: [
+    {key:"hadith_journey", label:"الرحلة في طلب الحديث"},
+    {key:"teachers", label:"الشيوخ"},
+    {key:"students", label:"التلاميذ"},
+    {key:"works", label:"المؤلفات"},
+    {key:"methodology", label:"منهجه"},
+    {key:"scholarly_standing", label:"مكانته"},
+  ],
+  exegete: [
+    {key:"teachers", label:"الشيوخ"},
+    {key:"students", label:"التلاميذ"},
+    {key:"tafsir_methodology", label:"منهجه في التفسير"},
+    {key:"works", label:"المؤلفات"},
+  ],
+  historian: [
+    {key:"teachers", label:"الشيوخ"},
+    {key:"works", label:"المؤلفات"},
+    {key:"methodology", label:"منهجه التاريخي"},
+  ],
+  physician: [
+    {key:"medical_training", label:"تكوينه الطبي"},
+    {key:"works", label:"المؤلفات"},
+    {key:"contributions", label:"إسهاماته الطبية"},
+  ],
+  philosopher: [
+    {key:"ideas", label:"الأفكار"},
+    {key:"works", label:"المؤلفات"},
+    {key:"intellectual_schools", label:"المدارس الفكرية"},
+    {key:"influence", label:"التأثير"},
+  ],
+  thinker: [
+    {key:"ideas", label:"الأفكار"},
+    {key:"works", label:"المؤلفات"},
+    {key:"influence", label:"التأثير"},
+  ],
+  poet: [
+    {key:"poetic_style", label:"الأسلوب الشعري"},
+    {key:"famous_verses", label:"أشهر أبياته"},
+    {key:"works", label:"دواوينه"},
+  ],
+  writer: [
+    {key:"literary_style", label:"الأسلوب الأدبي"},
+    {key:"works", label:"مؤلفاته"},
+  ],
+  geographer: [
+    {key:"journeys", label:"رحلاته"},
+    {key:"works", label:"مؤلفاته"},
+  ],
+  traveler: [
+    {key:"journeys", label:"رحلاته"},
+    {key:"works", label:"مؤلفاته"},
+  ],
+  politician: [
+    {key:"political_career", label:"مسيرته السياسية"},
+    {key:"political_positions", label:"مواقفه السياسية"},
+  ],
+};
+const RULER_TYPE_KEYS = new Set(["caliph","ruler","emir"]);
+
+/* ============================================================
+   State
+   ============================================================ */
+let currentUser = null;
+let currentAdminName = "";
+let currentEntity = null;
+let relationCache = {}; // table -> rows
+let editingId = null;
+let editingJunctionSelection = {}; // key -> Set of related ids currently checked in modal
+let peopleExtraSections = {}; // key -> text, for people.extra_sections JSONB (only used when currentEntity === "people")
+
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function toast(msg, isError){
+  const el = $("#toast");
+  el.textContent = msg;
+  el.style.borderColor = isError ? "var(--danger)" : "var(--gold)";
+  el.style.display = "block";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=> el.style.display="none", 3200);
+}
+
+/* ============================================================
+   Auth
+   ============================================================ */
+async function initAuth(){
+  $("#brand-icon-slot").innerHTML = ICONS.star;
+  $("#notif-btn").innerHTML = ICONS.bell + `<span class="badge" id="notif-badge" style="display:none;">0</span>`;
+  $("#avatar-btn").innerHTML = ICONS.user;
+  $("#mobile-menu-btn").innerHTML = ICONS.menu;
+  wireTopbarInteractions();
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ await handleLoggedIn(session.user); }
+  else { showLogin(); }
+}
+
+function showLogin(){
+  $("#login-screen").style.display = "flex";
+  $("#app").classList.remove("active");
+  $("#topbar-global").classList.remove("active");
+}
+
+async function handleLoggedIn(user){
+  // Verify this user is actually in the admins table (RLS-safe check)
+  const { data, error } = await sb.from("admins").select("user_id, full_name").eq("user_id", user.id).maybeSingle();
+  if(error || !data){
+    $("#login-error").textContent = "هذا الحساب غير مصرح له بالدخول إلى لوحة التحكم.";
+    await sb.auth.signOut();
+    showLogin();
+    return;
+  }
+  currentUser = user;
+  currentAdminName = data.full_name || "";
+  $("#login-screen").style.display = "none";
+  $("#app").classList.add("active");
+  $("#topbar-global").classList.add("active");
+  $("#avatar-name").textContent = currentAdminName || "المشرف";
+  $("#avatar-email").textContent = user.email;
+  await loadRelationCaches();
+  buildSidebar();
+  showDashboard();
+}
+
+$("#login-btn").addEventListener("click", doLogin);
+$("#login-password").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+
+async function doLogin(){
+  const email = $("#login-email").value.trim();
+  const password = $("#login-password").value;
+  $("#login-error").textContent = "";
+  if(!email || !password){ $("#login-error").textContent = "أدخل البريد الإلكتروني وكلمة المرور."; return; }
+  const btn = $("#login-btn");
+  btn.textContent = "جارٍ الدخول...";
+  let data, error;
+  try{
+    ({ data, error } = await sb.auth.signInWithPassword({ email, password }));
+  }catch(networkErr){
+    btn.textContent = "دخول";
+    $("#login-error").textContent = "تعذّر الاتصال بالخادم — يجب فتح هذا الملف عبر رابط http/https (وليس مباشرة من ملفات الجهاز). التفاصيل: " + networkErr.message;
+    console.error(networkErr);
+    return;
+  }
+  btn.textContent = "دخول";
+  if(error){
+    $("#login-error").textContent = "خطأ: " + error.message;
+    console.error(error);
+    return;
+  }
+  await handleLoggedIn(data.user);
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser = null;
+  location.reload();
+}
+
+/* ---- Topbar: notifications dropdown, avatar dropdown, mobile hamburger ---- */
+function wireTopbarInteractions(){
+  const notifBtn = $("#notif-btn"), notifDD = $("#notif-dropdown");
+  const avatarBtn = $("#avatar-btn"), avatarDD = $("#avatar-dropdown");
+
+  notifBtn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    avatarDD.classList.remove("open");
+    notifDD.classList.toggle("open");
+  });
+  avatarBtn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    notifDD.classList.remove("open");
+    avatarDD.classList.toggle("open");
+  });
+  document.addEventListener("click", ()=>{ notifDD.classList.remove("open"); avatarDD.classList.remove("open"); });
+
+  $("#avatar-logout-link").addEventListener("click", doLogout);
+  $("#avatar-settings-link").addEventListener("click", ()=>{ avatarDD.classList.remove("open"); showSettings(); });
+
+  $("#mobile-menu-btn").addEventListener("click", ()=>{
+    document.body.classList.toggle("sidebar-open");
+  });
+  document.body.addEventListener("click", (e)=>{
+    if(document.body.classList.contains("sidebar-open") && !$("#sidebar").contains(e.target) && e.target.id !== "mobile-menu-btn"){
+      document.body.classList.remove("sidebar-open");
+    }
+  });
+}
+
+async function refreshNotifications(){
+  let drafts = [];
+  for(const [key, cfg] of Object.entries(ENTITIES)){
+    if(cfg.noPublish) continue;
+    const { data } = await sb.from(cfg.table).select("id, created_at, "+cfg.titleField)
+      .eq("is_published", false).order("created_at", {ascending:false}).limit(5);
+    (data||[]).forEach(r=> drafts.push({ key, label:cfg.label, title:r[cfg.titleField] || "بدون عنوان", date:r.created_at }));
+  }
+  drafts.sort((a,b)=> new Date(b.date) - new Date(a.date));
+  const badge = $("#notif-badge");
+  if(drafts.length){ badge.style.display = "flex"; badge.textContent = drafts.length > 9 ? "9+" : drafts.length; }
+  else { badge.style.display = "none"; }
+
+  const list = $("#notif-list");
+  list.innerHTML = drafts.length ? drafts.slice(0,8).map(d=>
+    `<div class="dd-item" data-goto="${d.key}"><div class="dd-type">${d.label}</div>${escapeHtml(d.title)}</div>`
+  ).join("") : `<div class="dd-empty">لا توجد مسودات غير منشورة</div>`;
+  list.querySelectorAll("[data-goto]").forEach(el=> el.addEventListener("click", ()=>{
+    $("#notif-dropdown").classList.remove("open");
+    showEntity(el.dataset.goto);
+  }));
+}
+
+/* ============================================================
+   Sidebar / navigation
+   ============================================================ */
+function buildSidebar(){
+  const nav = $("#nav-list");
+  nav.innerHTML = "";
+
+  const dashItem = document.createElement("div");
+  dashItem.className = "nav-item active";
+  dashItem.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS.home}</span><span>لوحة التحكم</span></span>`;
+  dashItem.onclick = ()=> showDashboard();
+  nav.appendChild(dashItem);
+
+  Object.entries(ENTITIES).forEach(([key, cfg])=>{
+    const item = document.createElement("div");
+    item.className = "nav-item";
+    item.dataset.entity = key;
+    item.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS[cfg.icon]||ICONS.star}</span><span>${cfg.label}</span></span><span class="count" id="count-${key}">–</span>`;
+    item.onclick = ()=> showEntity(key);
+    nav.appendChild(item);
+  });
+
+  const mi = document.createElement("div");
+  mi.className = "nav-item";
+  mi.dataset.entity = "__media";
+  mi.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS.image}</span><span>مكتبة الوسائط</span></span>`;
+  mi.onclick = ()=> showMediaLibrary();
+  nav.appendChild(mi);
+
+  const si = document.createElement("div");
+  si.className = "nav-item";
+  si.dataset.entity = "__settings";
+  si.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS.settings}</span><span>الإعدادات</span></span>`;
+  si.onclick = ()=> showSettings();
+  nav.appendChild(si);
+
+  const ui = document.createElement("div");
+  ui.className = "nav-item";
+  ui.dataset.entity = "__users";
+  ui.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS.users}</span><span>المستخدمون</span></span>`;
+  ui.onclick = ()=> showUsers();
+  nav.appendChild(ui);
+
+  const lo = document.createElement("div");
+  lo.className = "nav-item danger";
+  lo.innerHTML = `<span class="label-wrap"><span class="icon">${ICONS.logOut}</span><span>تسجيل الخروج</span></span>`;
+  lo.onclick = doLogout;
+  nav.appendChild(lo);
+
+  refreshCounts();
+  refreshNotifications();
+  wireSidebarSearch();
+}
+
+function wireSidebarSearch(){
+  const input = $("#sidebar-search-input");
+  if(!input || input._wired) return;
+  input._wired = true;
+  input.addEventListener("input", ()=>{
+    const q = input.value.trim().toLowerCase();
+    $$(".nav-group-label").forEach(lbl=> lbl.classList.remove("hidden-by-filter"));
+    $$(".nav-item[data-entity]").forEach(item=>{
+      const match = !q || item.textContent.toLowerCase().includes(q);
+      item.classList.toggle("hidden-by-filter", !match);
+    });
+    // hide group labels whose items are all hidden
+    $$(".nav-group-label").forEach(lbl=>{
+      let sib = lbl.nextElementSibling, anyVisible = false;
+      while(sib && !sib.classList.contains("nav-group-label")){
+        if(sib.dataset && sib.dataset.entity && !sib.classList.contains("hidden-by-filter")) anyVisible = true;
+        sib = sib.nextElementSibling;
+      }
+      lbl.classList.toggle("hidden-by-filter", q && !anyVisible);
+    });
+  });
+}
+
+function setActiveNav(entityKey){
+  $$(".nav-item").forEach(el=>{
+    el.classList.toggle("active", el.dataset.entity === entityKey || (!entityKey && !el.dataset.entity));
+  });
+}
+
+async function refreshCounts(){
+  for(const key of Object.keys(ENTITIES)){
+    const { count } = await sb.from(ENTITIES[key].table).select("*", {count:"exact", head:true});
+    const el = document.getElementById(`count-${key}`);
+    if(el) el.textContent = count ?? "0";
+  }
+}
+
+/* ============================================================
+   Relation caches (for selects/multiselects/display)
+   ============================================================ */
+async function loadRelationCaches(){
+  for(const t of ["eras","dynasties","cities","person_types"]){
+    const { data } = await sb.from(t).select("*").order(RELATION_LABEL_FIELD[t] || "id");
+    relationCache[t] = data || [];
+  }
+}
+function relLabel(table, id){
+  if(!id) return "—";
+  const rows = relationCache[table] || [];
+  const row = rows.find(r=> r.id === id);
+  if(!row) return "—";
+  return row[RELATION_LABEL_FIELD[table]] || row.name_ar || row.label_ar || id;
+}
+
+/* ============================================================
+   Dashboard
+   ============================================================ */
+async function showDashboard(){
+  currentEntity = null;
+  setActiveNav(null);
+  $("#page-title").textContent = "لوحة التحكم";
+  $("#page-desc").textContent = "نظرة عامة على محتوى الموسوعة";
+  $("#add-btn").style.display = "none";
+
+  const content = $("#content");
+  const greetName = currentAdminName ? currentAdminName.split(" ")[0] : "";
+  content.innerHTML = `
+    <h2 class="dash-greeting"><span class="wave">👋</span> مرحباً بك${greetName ? " يا " + escapeHtml(greetName) : ""} في لوحة التحكم</h2>
+    <div class="dash-sub">نظرة عامة على محتوى الموسوعة</div>
+
+    <div class="section-heading">${ICONS.pieChart} إحصائيات المحتوى</div>
+    <div class="stat-grid" id="stat-grid">${Object.keys(ENTITIES).map(()=>
+      `<div class="stat-card"><div class="skeleton-bar" style="width:40%;margin-bottom:14px;"></div><div class="skeleton-bar" style="width:70%;height:22px;"></div></div>`
+    ).join("")}</div>
+
+    <div class="section-heading">${ICONS.clock} آخر المحتوى المضاف</div>
+    <div class="table-wrap"><table><thead><tr>
+      <th>العنوان</th><th>النوع</th><th>التاريخ</th><th>الحالة</th>
+    </tr></thead><tbody id="recent-body">${skeletonRows(4)}</tbody></table></div>
+
+    <div class="section-heading">${ICONS.pieChart} ملخص المحتوى</div>
+    <div class="summary-card"><div class="summary-body" id="summary-body"></div></div>
+
+    <div class="section-heading">${ICONS.zap} إجراءات سريعة</div>
+    <div class="quick-actions" id="quick-actions"></div>
+
+    <div class="section-heading">${ICONS.activity} النشاط الأخير</div>
+    <div class="summary-card"><div class="activity-list" id="activity-list"></div></div>
+  `;
+
+  // Quick actions — matches the five most common content types admins add
+  const quickKeys = ["eras","people","battles","events","cities"];
+  $("#quick-actions").innerHTML = quickKeys.filter(k=>ENTITIES[k]).map(k=>{
+    const cfg = ENTITIES[k];
+    return `<div class="quick-action-btn" data-qa="${k}">
+      ${iconChip(cfg.icon, cfg.color, cfg.colorBg, 40)}
+      <span>إضافة ${cfg.label.replace(/^ال/,'')}</span>
+    </div>`;
+  }).join("");
+  $$("[data-qa]").forEach(btn=> btn.addEventListener("click", ()=> openModal(btn.dataset.qa, null)));
+
+  const counts = {};
+  const recent = [];
+  for(const [key, cfg] of Object.entries(ENTITIES)){
+    const { count } = await sb.from(cfg.table).select("*", {count:"exact", head:true});
+    counts[key] = count || 0;
+    const { data } = await sb.from(cfg.table)
+      .select("id, created_at, "+cfg.titleField+(cfg.noPublish?"":", is_published"))
+      .order("created_at", {ascending:false}).limit(3);
+    (data||[]).forEach(r=> recent.push({
+      key, type:cfg.label, title:r[cfg.titleField] || "بدون عنوان", date:r.created_at,
+      published: cfg.noPublish ? null : r.is_published
+    }));
+  }
+
+  // Stat cards
+  $("#stat-grid").innerHTML = Object.entries(ENTITIES).map(([key,cfg])=>
+    `<div class="stat-card" data-goto="${key}" style="cursor:pointer;">
+      ${iconChip(cfg.icon, cfg.color, cfg.colorBg)}
+      <div class="num">${counts[key]}</div><div class="label">${cfg.label}</div>
+    </div>`
+  ).join("");
+  $$("#stat-grid [data-goto]").forEach(el=> el.addEventListener("click", ()=> showEntity(el.dataset.goto)));
+
+  // Recent content table
+  recent.sort((a,b)=> new Date(b.date) - new Date(a.date));
+  const recentTop = recent.slice(0,8);
+  $("#recent-body").innerHTML = recentTop.length ? recentTop.map(r=>{
+    const pub = r.published === null ? "" :
+      (r.published ? '<span class="pill pill-ok">منشور</span>' : '<span class="pill pill-off">مسودة</span>');
+    return `<tr><td data-label="العنوان">${escapeHtml(r.title)}</td><td data-label="النوع">${r.type}</td><td data-label="التاريخ">${formatDate(r.date)}</td><td data-label="الحالة">${pub}</td></tr>`;
+  }).join("") : `<tr><td colspan="4"><div class="empty-state">لا يوجد محتوى بعد</div></td></tr>`;
+
+  // Content summary donut (5 core categories)
+  const summaryKeys = DASHBOARD_SUMMARY_KEYS.filter(k=> ENTITIES[k]);
+  const total = summaryKeys.reduce((s,k)=> s + counts[k], 0);
+  const donutColors = summaryKeys.map(k=> ENTITIES[k].color);
+  $("#summary-body").innerHTML = `
+    <div class="summary-legend">${summaryKeys.map((k,i)=>
+      `<div class="legend-row"><span class="dot" style="background:${donutColors[i]}"></span>
+       <span class="val">${counts[k]}</span><span class="lbl">${ENTITIES[k].label}</span></div>`
+    ).join("")}</div>
+    <div class="donut-wrap">${buildDonutSvg(summaryKeys.map(k=>counts[k]), donutColors)}
+      <div class="donut-center">${total ? "100%" : "0%"}</div>
+    </div>`;
+
+  // Recent activity feed (reuse the same recent data, phrased as activity)
+  $("#activity-list").innerHTML = recentTop.length ? recentTop.slice(0,6).map(r=>{
+    const cfg = Object.values(ENTITIES).find(c=> c.label === r.type) || {};
+    return `<div class="activity-item">
+      ${iconChip(cfg.icon, cfg.color, cfg.colorBg, 36)}
+      <div class="act-body">
+        <div class="act-title">تمت إضافة ${r.type.replace(/^ال/,'')} جديد — ${escapeHtml(r.title)}</div>
+        <div class="act-time"><span class="dot"></span>${relativeTime(r.date)}</div>
+      </div>
+      <div class="act-plus">${ICONS.plus}</div>
+    </div>`;
+  }).join("") : `<div class="empty-state">لا يوجد نشاط بعد</div>`;
+
+  refreshNotifications();
+}
+
+function buildDonutSvg(values, colors){
+  const total = values.reduce((a,b)=>a+b,0);
+  const r = 60, cx = 70, cy = 70, circumference = 2 * Math.PI * r;
+  if(!total){
+    return `<svg viewBox="0 0 140 140"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--navy-3)" stroke-width="18"/></svg>`;
+  }
+  let offset = 0;
+  const segments = values.map((v,i)=>{
+    const frac = v / total;
+    const dash = frac * circumference;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[i]}" stroke-width="18"
+      stroke-dasharray="${dash} ${circumference-dash}" stroke-dashoffset="${-offset}"/>`;
+    offset += dash;
+    return seg;
+  }).join("");
+  return `<svg viewBox="0 0 140 140">${segments}</svg>`;
+}
+
+function relativeTime(dateStr){
+  if(!dateStr) return "—";
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if(mins < 1) return "منذ دقيقة";
+  if(mins < 60) return `منذ ${mins} دقيقة`;
+  const hrs = Math.floor(mins/60);
+  if(hrs < 24) return `منذ ${hrs} ساعة`;
+  const days = Math.floor(hrs/24);
+  if(days < 30) return `منذ ${days} يوم`;
+  return formatDate(dateStr);
+}
+
+/* ============================================================
+   Entity list view
+   ============================================================ */
+async function showEntity(key){
+  currentEntity = key;
+  const cfg = ENTITIES[key];
+  setActiveNav(key);
+  $("#page-title").textContent = cfg.label;
+  $("#page-desc").textContent = `إدارة ${cfg.label} — إضافة، تعديل، حذف`;
+  const addBtn = $("#add-btn");
+  addBtn.style.display = "inline-flex";
+  addBtn.onclick = ()=> openModal(key, null);
+
+  selectedIds = new Set();
+  currentPage = 1;
+
+  const content = $("#content");
+  content.innerHTML = `
+    <div class="toolbar">
+      <input type="text" class="search-box" id="entity-search" placeholder="بحث في ${cfg.label}...">
+    </div>
+    <div id="bulk-toolbar-slot"></div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th class="row-check"><input type="checkbox" id="select-all-check"></th>
+        ${cfg.listColumns.map(c=>`<th>${c.label}</th>`).join("")}
+        ${cfg.noPublish ? "" : "<th>الحالة</th>"}<th></th>
+      </tr></thead>
+      <tbody id="entity-body">
+        ${skeletonRows(cfg.listColumns.length + (cfg.noPublish?0:1) + 2)}
+      </tbody>
+    </table></div>
+    <div class="pagination" id="entity-pagination"></div>`;
+
+  $("#select-all-check").addEventListener("change", (e)=>{
+    const rows = filterRows($("#entity-search").value);
+    const pageRows = paginate(rows).items;
+    if(e.target.checked) pageRows.forEach(r=> selectedIds.add(r.id));
+    else pageRows.forEach(r=> selectedIds.delete(r.id));
+    renderEntityRows(key, rows);
+  });
+
+  await loadEntityRows(key);
+  $("#entity-search").addEventListener("input", (e)=>{ currentPage = 1; renderEntityRows(key, filterRows(e.target.value)); });
+}
+
+function skeletonRows(cols){
+  return Array.from({length:6}).map(()=>
+    `<tr>${Array.from({length:cols}).map(()=>`<td><div class="skeleton-bar" style="width:${40+Math.random()*50}%"></div></td>`).join("")}</tr>`
+  ).join("");
+}
+
+function paginate(rows){
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if(currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage-1) * PAGE_SIZE;
+  return { items: rows.slice(start, start+PAGE_SIZE), totalPages, total: rows.length };
+}
+
+let currentRows = [];
+let selectedIds = new Set();
+let currentPage = 1;
+const PAGE_SIZE = 25;
+
+async function loadEntityRows(key){
+  const cfg = ENTITIES[key];
+  const order = cfg.order || "id";
+  const { data, error } = await sb.from(cfg.table).select("*").order(order, {ascending:true, nullsFirst:false});
+  if(error){ toast("خطأ في تحميل البيانات: "+error.message, true); currentRows = []; }
+  else currentRows = data || [];
+  renderEntityRows(key, currentRows);
+}
+function filterRows(q){
+  q = (q||"").trim().toLowerCase();
+  if(!q) return currentRows;
+  const cfg = ENTITIES[currentEntity];
+  return currentRows.filter(r => (r[cfg.titleField]||"").toLowerCase().includes(q));
+}
+
+function renderEntityRows(key, rows){
+  const cfg = ENTITIES[key];
+  const body = $("#entity-body");
+  renderBulkToolbar(key, rows);
+
+  if(!rows.length){
+    const colspan = cfg.listColumns.length + (cfg.noPublish?0:1) + 2;
+    body.innerHTML = `<tr><td colspan="${colspan}"><div class="empty-state">
+      <div class="display">لا يوجد محتوى بعد</div>
+      اضغط "إضافة عنصر جديد" لبدء إضافة ${cfg.label}
+    </div></td></tr>`;
+    $("#entity-pagination").innerHTML = "";
+    return;
+  }
+
+  const { items, totalPages, total } = paginate(rows);
+
+  body.innerHTML = items.map(r=>{
+    const cells = cfg.listColumns.map(c=>{
+      let val = r[c.key];
+      if(c.fallback && !val) val = r[c.fallback];
+      if(c.relation) val = relLabel(c.relation, val);
+      if(c.boolean) val = val ? "نعم" : "لا";
+      if(c.key.includes("date") && val) val = formatDate(val);
+      return `<td data-label="${c.label}">${escapeHtml(val ?? "—")}</td>`;
+    }).join("");
+    const pub = cfg.noPublish ? "" :
+      `<td data-label="الحالة">${r.is_published ? '<span class="pill pill-ok">منشور</span>' : '<span class="pill pill-off">مسودة</span>'}</td>`;
+    return `<tr>
+      <td class="row-check" data-label="تحديد"><input type="checkbox" class="row-check-input" data-id="${r.id}" ${selectedIds.has(r.id)?"checked":""}></td>
+      ${cells}
+      ${pub || (cfg.noPublish ? "" : "<td></td>")}
+      <td class="actions-cell"><div class="row-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openModal('${key}','${r.id}')">تعديل</button>
+        <button class="btn btn-ghost btn-sm" onclick="duplicateRow('${key}','${r.id}')">نسخ</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRow('${key}','${r.id}')">حذف</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+
+  $$(".row-check-input").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      const id = cb.dataset.id;
+      if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+      renderBulkToolbar(key, rows);
+      const selAll = $("#select-all-check");
+      if(selAll) selAll.checked = items.every(r=> selectedIds.has(r.id));
+    });
+  });
+  const selAll = $("#select-all-check");
+  if(selAll) selAll.checked = items.length>0 && items.every(r=> selectedIds.has(r.id));
+
+  $("#entity-pagination").innerHTML = totalPages<=1 ? "" : `
+    <button class="btn btn-ghost btn-sm" id="page-prev" ${currentPage<=1?"disabled":""}>السابق ‹</button>
+    <span>صفحة ${currentPage} من ${totalPages} (${total} عنصر)</span>
+    <button class="btn btn-ghost btn-sm" id="page-next" ${currentPage>=totalPages?"disabled":""}>› التالي</button>`;
+  const prevBtn = $("#page-prev"), nextBtn = $("#page-next");
+  if(prevBtn) prevBtn.onclick = ()=>{ currentPage--; renderEntityRows(key, rows); };
+  if(nextBtn) nextBtn.onclick = ()=>{ currentPage++; renderEntityRows(key, rows); };
+}
+
+function renderBulkToolbar(key, rows){
+  const slot = $("#bulk-toolbar-slot");
+  if(!slot) return;
+  const cfg = ENTITIES[key];
+  if(!selectedIds.size){ slot.innerHTML = ""; return; }
+  slot.innerHTML = `<div class="bulk-toolbar">
+    <span class="count">${selectedIds.size}</span> عنصر محدد
+    <div class="spacer"></div>
+    ${cfg.noPublish ? "" : `
+      <button class="btn btn-ghost btn-sm" id="bulk-publish">نشر</button>
+      <button class="btn btn-ghost btn-sm" id="bulk-unpublish">إلغاء النشر</button>
+    `}
+    <button class="btn btn-danger btn-sm" id="bulk-delete">حذف المحدد</button>
+    <button class="btn btn-ghost btn-sm" id="bulk-clear">إلغاء التحديد</button>
+  </div>`;
+  const bp = $("#bulk-publish"), bu = $("#bulk-unpublish"), bd = $("#bulk-delete"), bc = $("#bulk-clear");
+  if(bp) bp.onclick = ()=> bulkSetPublished(key, true);
+  if(bu) bu.onclick = ()=> bulkSetPublished(key, false);
+  if(bd) bd.onclick = ()=> bulkDelete(key);
+  if(bc) bc.onclick = ()=>{ selectedIds.clear(); renderEntityRows(key, filterRows($("#entity-search").value)); };
+}
+
+async function bulkSetPublished(key, value){
+  const cfg = ENTITIES[key];
+  const ids = Array.from(selectedIds);
+  if(!ids.length) return;
+  const { error } = await sb.from(cfg.table).update({ is_published: value }).in("id", ids);
+  if(error){ toast("تعذّر التحديث: "+error.message, true); return; }
+  toast(value ? "تم نشر العناصر المحددة" : "تم إلغاء نشر العناصر المحددة");
+  selectedIds.clear();
+  await loadEntityRows(key);
+  refreshCounts();
+}
+
+async function bulkDelete(key){
+  const cfg = ENTITIES[key];
+  const ids = Array.from(selectedIds);
+  if(!ids.length) return;
+  if(!confirm(`هل أنت متأكد من حذف ${ids.length} عنصر من "${cfg.label}"؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+  const { error } = await sb.from(cfg.table).delete().in("id", ids);
+  if(error){ toast("تعذّر الحذف: "+error.message, true); return; }
+  toast("تم حذف العناصر المحددة");
+  selectedIds.clear();
+  await loadEntityRows(key);
+  refreshCounts();
+}
+
+async function duplicateRow(key, id){
+  const cfg = ENTITIES[key];
+  const { data, error } = await sb.from(cfg.table).select("*").eq("id", id).single();
+  if(error){ toast("تعذّر تحميل العنصر للنسخ: "+error.message, true); return; }
+  const clone = { ...data };
+  delete clone.id;
+  delete clone.created_at;
+  if("slug" in clone && clone.slug) clone.slug = clone.slug + "-copy-" + Date.now().toString(36).slice(-4);
+  if("is_published" in clone) clone.is_published = false;
+  editingId = null;
+  editingJunctionSelection = {};
+  // preload multiselect junctions from the source row so the copy keeps its relations
+  for(const f of cfg.fields){
+    if(f.type === "multiselect"){
+      const { data:links } = await sb.from(f.junction).select(f.junctionKey).eq(idColumnFor(cfg.table), id);
+      editingJunctionSelection[f.key] = new Set((links||[]).map(l=> l[f.junctionKey]));
+    }
+  }
+  openModalWithRecord(key, clone, `نسخة — ${cfg.label}`);
+}
+
+async function deleteRow(key, id){
+  const cfg = ENTITIES[key];
+  if(!confirm(`هل أنت متأكد من حذف هذا العنصر من "${cfg.label}"؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+  const { error } = await sb.from(cfg.table).delete().eq("id", id);
+  if(error){ toast("تعذّر الحذف: "+error.message, true); return; }
+  toast("تم الحذف بنجاح");
+  await loadEntityRows(key);
+  refreshCounts();
+}
+
+/* ============================================================
+   Modal / form rendering
+   ============================================================ */
+async function openModal(key, id){
+  const cfg = ENTITIES[key];
+  editingId = id;
+  editingJunctionSelection = {};
+
+  let record = {};
+  if(id){
+    const { data, error } = await sb.from(cfg.table).select("*").eq("id", id).single();
+    if(error){ toast("تعذّر تحميل العنصر: "+error.message, true); return; }
+    record = data;
+    for(const f of cfg.fields){
+      if(f.type === "multiselect"){
+        const { data:links } = await sb.from(f.junction).select(f.junctionKey).eq(idColumnFor(cfg.table), id);
+        editingJunctionSelection[f.key] = new Set((links||[]).map(l=> l[f.junctionKey]));
+      }
+    }
+  }
+  openModalWithRecord(key, record, id ? `تعديل — ${cfg.label}` : `إضافة — ${cfg.label}`);
+}
+
+let modalTabs = [];
+let activeTabIndex = 0;
+let modalDirty = false;
+
+function openModalWithRecord(key, record, title){
+  const cfg = ENTITIES[key];
+  currentEntity = key;
+  $("#modal-title").textContent = title;
+  $("#modal-msg").textContent = "";
+  $("#modal-msg").className = "form-msg";
+
+  modalTabs = splitIntoTabs(cfg.fields);
+  activeTabIndex = 0;
+  modalDirty = false;
+
+  const tabsEl = $("#modal-tabs");
+  if(modalTabs.length > 1){
+    tabsEl.style.display = "flex";
+    $("#modal-progress").style.display = "block";
+    tabsEl.innerHTML = modalTabs.map((t,i)=>
+      `<button type="button" class="modal-tab-btn ${i===0?'active':''}" data-tab="${i}">${t.title}</button>`
+    ).join("");
+    $$(".modal-tab-btn").forEach(btn=> btn.onclick = ()=> switchTab(Number(btn.dataset.tab)));
+  } else {
+    tabsEl.style.display = "none";
+    $("#modal-progress").style.display = "none";
+  }
+
+  $("#modal-body").innerHTML = modalTabs.map((t,i)=>
+    `<div class="modal-tab-panel ${i===0?'active':''}" data-panel="${i}">
+      <div class="form-grid">${groupFieldsForRender(t.fields).map(item=> item.type==="i18n" ? renderI18nGroup(item.members, record) : renderField(item.field, record)).join("")}</div>
+    </div>`
+  ).join("");
+
+  wireImageInputs();
+  wireSearchableSelects(record);
+  wireSlugAuto(cfg);
+  wireDateManualFields();
+  wireI18nTabs();
+  updateModalProgress(cfg);
+
+  if(key === "people"){
+    peopleExtraSections = { ...(record.extra_sections || {}) };
+    renderPeopleExtraSections();
+    applyPeopleVisibility();
+    $$('[data-multikey="person_type_ids"]').forEach(cb=> cb.addEventListener("change", ()=>{ applyPeopleVisibility(); renderPeopleExtraSections(); }));
+    const rulerCb = document.querySelector('[data-key="is_ruler"]');
+    if(rulerCb) rulerCb.addEventListener("change", applyPeopleVisibility);
+    const earlyCb = document.querySelector('[data-key="is_early_islam_figure"]');
+    if(earlyCb) earlyCb.addEventListener("change", applyPeopleVisibility);
+  }
+
+  const bodyEl = $("#modal-body");
+  if(!bodyEl._dirtyWired){
+    bodyEl._dirtyWired = true;
+    bodyEl.addEventListener("input", ()=>{ modalDirty = true; });
+    bodyEl.addEventListener("change", ()=>{ modalDirty = true; });
+  }
+
+  $("#modal-overlay").classList.add("active");
+}
+
+/* ---- People: type-driven conditional sections ---- */
+function selectedPersonTypeKeys(){
+  const ids = $$('[data-multikey="person_type_ids"]:checked').map(el=> el.value);
+  const rows = relationCache.person_types || [];
+  return ids.map(id=> (rows.find(r=> r.id === id) || {}).key).filter(Boolean);
+}
+
+function applyPeopleVisibility(){
+  const typeKeys = selectedPersonTypeKeys();
+  const isRulerChecked = document.querySelector('[data-key="is_ruler"]')?.checked;
+  const isEarlyChecked = document.querySelector('[data-key="is_early_islam_figure"]')?.checked;
+  const showRuler = isRulerChecked || typeKeys.some(k=> RULER_TYPE_KEYS.has(k));
+  const showEarlyIslam = isEarlyChecked || typeKeys.includes("caliph");
+
+  $$('[data-vis-group="ruler"]').forEach(el=> el.classList.toggle("vis-hidden", !showRuler));
+  $$('[data-vis-group="early_islam"]').forEach(el=> el.classList.toggle("vis-hidden", !showEarlyIslam));
+
+  // keep the is_ruler checkbox itself in sync when a ruler-type is selected (doesn't force it off if manually checked)
+  const rulerCb = document.querySelector('[data-key="is_ruler"]');
+  if(rulerCb && typeKeys.some(k=> RULER_TYPE_KEYS.has(k))) rulerCb.checked = true;
+}
+
+function renderPeopleExtraSections(){
+  const container = $("#people-extra-sections-container");
+  if(!container) return;
+  const typeKeys = selectedPersonTypeKeys();
+  const seen = new Map();
+  typeKeys.forEach(k=> (PERSON_TYPE_SECTIONS[k]||[]).forEach(s=> seen.set(s.key, s.label)));
+
+  if(!seen.size){
+    container.innerHTML = `<div class="extra-section-empty">اختر نوع الشخصية أعلاه لإظهار الأقسام المناسبة (مثل: الشيوخ، التلاميذ، المؤلفات...)</div>`;
+    return;
+  }
+  container.innerHTML = Array.from(seen.entries()).map(([k,label])=>
+    `<div class="extra-section-block">
+      <label>${label}</label>
+      <textarea class="long" data-extra-key="${k}">${escapeHtml(peopleExtraSections[k]||"")}</textarea>
+    </div>`
+  ).join("");
+  container.querySelectorAll('[data-extra-key]').forEach(ta=>
+    ta.addEventListener("input", ()=>{ peopleExtraSections[ta.dataset.extraKey] = ta.value; })
+  );
+}
+
+function splitIntoTabs(fields){
+  const tabs = [{ title: "معلومات أساسية", fields: [] }];
+  let cur = tabs[0];
+  fields.forEach(f=>{
+    if(f.type === "section"){
+      cur = { title: f.label, fields: [] };
+      tabs.push(cur);
+    } else {
+      cur.fields.push(f);
+    }
+  });
+  return tabs.filter(t=> t.fields.length);
+}
+
+function switchTab(i){
+  activeTabIndex = i;
+  $$(".modal-tab-btn").forEach((b,idx)=> b.classList.toggle("active", idx===i));
+  $$(".modal-tab-panel").forEach((p,idx)=> p.classList.toggle("active", idx===i));
+}
+
+function updateModalProgress(cfg){
+  const el = $("#modal-progress");
+  if(!el || modalTabs.length<=1) return;
+  const seenGroups = new Set();
+  const total = cfg.fields.filter(f=>{
+    if(f.type==="section") return false;
+    if(f.i18nGroup){ if(seenGroups.has(f.i18nGroup)) return false; seenGroups.add(f.i18nGroup); }
+    return true;
+  }).length;
+  el.textContent = `${total} حقل موزّع على ${modalTabs.length} أقسام — الحقول المميزة بـ * مطلوبة`;
+}
+
+function idColumnFor(table){
+  // junction tables use `<table-singular>_id` naming; our schema uses person_id / battle_id
+  if(table === "people") return "person_id";
+  if(table === "battles") return "battle_id";
+  return table.replace(/s$/,"") + "_id";
+}
+
+function renderFieldControl(f, record){
+  const val = record[f.key];
+  const req = f.required ? "required" : "";
+  if(f.type === "textarea" || f.type === "textarea-long"){
+    return `<textarea class="${f.type==='textarea-long'?'long':''}" data-key="${f.key}" ${req}>${escapeHtml(val||"")}</textarea>`;
+  }
+  return `<input type="text" data-key="${f.key}" value="${escapeHtml(val ?? "")}" ${req}>`;
+}
+
+/* ---- Group AR/FR/EN variants of the same field (marked with a shared i18nGroup)
+   into one compact tabbed widget instead of three stacked fields. ---- */
+const I18N_LANG_LABEL = {ar:"AR", fr:"FR", en:"EN"};
+const I18N_LANG_ORDER = {ar:0, fr:1, en:2};
+
+function groupFieldsForRender(fields){
+  const emitted = new Set();
+  const out = [];
+  fields.forEach(f=>{
+    if(f.i18nGroup){
+      if(emitted.has(f.i18nGroup)) return;
+      emitted.add(f.i18nGroup);
+      out.push({ type:"i18n", members: fields.filter(x=> x.i18nGroup === f.i18nGroup) });
+    } else {
+      out.push({ type:"single", field:f });
+    }
+  });
+  return out;
+}
+
+function renderI18nGroup(members, record){
+  members = [...members].sort((a,b)=> (I18N_LANG_ORDER[a.lang]??9) - (I18N_LANG_ORDER[b.lang]??9));
+  const primary = members.find(m=> m.lang === "ar") || members[0];
+  const isLong = primary.type === "textarea" || primary.type === "textarea-long";
+  const full = (primary.full || isLong) ? "full" : "";
+  const req = primary.required ? " *" : "";
+  const wrapAttrs = `data-field-key="${primary.key}"${primary.visibilityGroup?` data-vis-group="${primary.visibilityGroup}"`:""}`;
+  return `<div class="field i18n-field ${full}" ${wrapAttrs}>
+    <div class="i18n-head">
+      <label>${primary.groupLabel || primary.label}${req}</label>
+      <div class="i18n-tabs">
+        ${members.map((m,i)=> `<button type="button" class="i18n-tab ${i===0?'active':''} ${record[m.key]?'has-content':''}" data-i18n-lang="${m.lang}">${I18N_LANG_LABEL[m.lang]||m.lang.toUpperCase()}</button>`).join("")}
+      </div>
+    </div>
+    <div class="i18n-panes">
+      ${members.map((m,i)=> `<div class="i18n-pane ${i===0?'active':''}" data-i18n-pane="${m.lang}">${renderFieldControl(m, record)}</div>`).join("")}
+    </div>
+    ${primary.hint?`<div class="hint">${primary.hint}</div>`:""}
+  </div>`;
+}
+
+function wireI18nTabs(){
+  $$('.i18n-field').forEach(group=>{
+    group.querySelectorAll('.i18n-tab').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const lang = btn.dataset.i18nLang;
+        group.querySelectorAll('.i18n-tab').forEach(b=> b.classList.toggle('active', b===btn));
+        group.querySelectorAll('.i18n-pane').forEach(p=> p.classList.toggle('active', p.dataset.i18nPane===lang));
+      });
+    });
+  });
+}
+
+function renderField(f, record){
+  const full = f.full ? "full" : "";
+  if(f.type === "section"){
+    return `<div class="section-title">${f.label}</div>`;
+  }
+  const val = record[f.key];
+  const req = f.required ? "required" : "";
+  const label = `<label>${f.label}${f.required?' *':''}</label>`;
+  const wrapAttrs = `data-field-key="${f.key}"${f.visibilityGroup?` data-vis-group="${f.visibilityGroup}"`:""}`;
+
+  if(f.type === "textarea" || f.type === "textarea-long"){
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <textarea class="${f.type==='textarea-long'?'long':''}" data-key="${f.key}" ${req}>${escapeHtml(val||"")}</textarea>
+      ${f.hint?`<div class="hint">${f.hint}</div>`:""}
+    </div>`;
+  }
+  if(f.type === "checkbox"){
+    return `<div class="field field-check ${full}" ${wrapAttrs}>
+      <input type="checkbox" id="fld-${f.key}" data-key="${f.key}" ${val?"checked":""}>
+      <label for="fld-${f.key}">${f.label}</label>
+    </div>`;
+  }
+  if(f.type === "select"){
+    const rows = relationCache[f.relation] || [];
+    const labelField = RELATION_LABEL_FIELD[f.relation];
+    // long relation lists get a searchable combobox instead of a plain <select>
+    if(rows.length > 8){
+      const current = rows.find(r=> r.id === val);
+      return `<div class="field ${full}" ${wrapAttrs}>${label}
+        <div class="ss-wrap">
+          <input type="text" class="ss-input" data-ss-key="${f.key}" autocomplete="off"
+                 placeholder="اكتب للبحث..." value="${escapeHtml(current ? current[labelField] : "")}">
+          <input type="hidden" data-key="${f.key}" value="${escapeHtml(val||"")}">
+          <div class="ss-dropdown" data-ss-dropdown="${f.key}"></div>
+        </div>
+      </div>`;
+    }
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <select data-key="${f.key}">
+        <option value="">— بدون —</option>
+        ${rows.map(r=>`<option value="${r.id}" ${val===r.id?"selected":""}>${escapeHtml(r[labelField])}</option>`).join("")}
+      </select>
+    </div>`;
+  }
+  if(f.type === "select-static"){
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <select data-key="${f.key}">
+        <option value="">— بدون —</option>
+        ${f.options.map(([v,l])=>`<option value="${v}" ${val===v?"selected":""}>${l}</option>`).join("")}
+      </select>
+    </div>`;
+  }
+  if(f.type === "multiselect"){
+    const rows = relationCache[f.relation] || [];
+    const labelField = RELATION_LABEL_FIELD[f.relation];
+    const selected = editingJunctionSelection[f.key] || new Set();
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <div class="multiselect">
+        ${rows.map(r=>`<label class="chip-check ${selected.has(r.id)?'checked':''}">
+          <input type="checkbox" data-multikey="${f.key}" value="${r.id}" ${selected.has(r.id)?"checked":""} onchange="this.closest('.chip-check').classList.toggle('checked',this.checked)">
+          ${escapeHtml(r[labelField])}
+        </label>`).join("")}
+      </div>
+    </div>`;
+  }
+  if(f.type === "tags"){
+    const arr = Array.isArray(val) ? val.join(", ") : (val||"");
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <input type="text" data-key="${f.key}" data-tags="1" value="${escapeHtml(arr)}">
+      ${f.hint?`<div class="hint">${f.hint}</div>`:""}
+    </div>`;
+  }
+  if(f.type === "image"){
+    const isPdf = (f.accept||'').indexOf('pdf') !== -1;
+    return `<div class="field image-field ${full}" ${wrapAttrs}>${label}
+      <div class="dropzone" data-dropzone-for="${f.key}">
+        <input type="file" accept="${f.accept||'image/*'}" data-image-for="${f.key}">
+        <div class="dz-text" data-image-status="${f.key}">
+          ${val ? "ملف محفوظ ✓ — اسحب ملفًا جديدًا أو انقر للاستبدال" : `اسحب ${isPdf?'ملف PDF':'صورة'} هنا، أو <strong>انقر للاختيار</strong>${isPdf?"":" (أو الصق من الحافظة)"}`}
+        </div>
+        ${val && !isPdf ? `<img class="preview" src="${val}">` : ""}
+      </div>
+      <input type="hidden" data-key="${f.key}" value="${escapeHtml(val||"")}">
+      ${f.hint?`<div class="hint">${f.hint}</div>`:""}
+    </div>`;
+  }
+  if(f.type === "color"){
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <input type="color" data-key="${f.key}" value="${val||'#C6A15B'}" style="height:40px;padding:4px;">
+    </div>`;
+  }
+  if(f.type === "date-manual"){
+    const precision = f.precisionKey ? (record[f.precisionKey] || "day") : "day";
+    let y = "", m = "", d = "";
+    if(val){
+      const parts = String(val).split("-");
+      y = parts[0] || "";
+      m = precision === "year" ? "" : (parts[1] ? String(Number(parts[1])) : "");
+      d = precision === "day" ? (parts[2] ? String(Number(parts[2])) : "") : "";
+    }
+    return `<div class="field ${full}" ${wrapAttrs}>${label}
+      <div class="date-manual-group">
+        <input type="number" class="dm-day" data-dm="day" placeholder="يوم" min="1" max="31" value="${d}">
+        <input type="number" class="dm-month" data-dm="month" placeholder="شهر" min="1" max="12" value="${m}">
+        <input type="number" class="dm-year" data-dm="year" placeholder="سنة (ميلادي)" value="${y}">
+      </div>
+      <div class="precision-note">اترك اليوم و/أو الشهر فارغين إذا لم يكونا معروفين تاريخيًا</div>
+      <input type="hidden" data-key="${f.key}" value="${escapeHtml(val||"")}">
+      ${f.precisionKey?`<input type="hidden" data-key="${f.precisionKey}" value="${escapeHtml(precision)}">`:""}
+    </div>`;
+  }
+  if(f.type === "people-extra-sections"){
+    return `<div class="field full" ${wrapAttrs}>
+      <div id="people-extra-sections-container"></div>
+    </div>`;
+  }
+  // text / number / date
+  const step = f.step ? `step="${f.step}"` : "";
+  return `<div class="field ${full}" ${wrapAttrs}>${label}
+    <input type="${f.type}" data-key="${f.key}" value="${escapeHtml(val ?? "")}" ${req} ${step}>
+  </div>`;
+}
+
+/* ---- Manual date-entry (day/month/year) wiring: keeps the hidden ISO value + precision in sync ---- */
+function wireDateManualFields(){
+  $$('[data-field-key]').forEach(wrap=>{
+    const group = wrap.querySelector('.date-manual-group');
+    if(!group) return;
+    const hidden = wrap.querySelector('input[type=hidden][data-key]');
+    const precisionInput = wrap.querySelectorAll('input[type=hidden]')[1] || null;
+    const dayEl = group.querySelector('.dm-day'), monthEl = group.querySelector('.dm-month'), yearEl = group.querySelector('.dm-year');
+    const sync = ()=>{
+      const y = yearEl.value.trim(), m = monthEl.value.trim(), d = dayEl.value.trim();
+      if(!y){ hidden.value = ""; if(precisionInput) precisionInput.value = "day"; return; }
+      const precision = d ? "day" : (m ? "month" : "year");
+      const iso = `${y.padStart(4,"0")}-${(m||"1").padStart(2,"0")}-${(d||"1").padStart(2,"0")}`;
+      hidden.value = iso;
+      if(precisionInput) precisionInput.value = precision;
+    };
+    [dayEl, monthEl, yearEl].forEach(el=> el.addEventListener("input", sync));
+  });
+}
+
+/* ---- Searchable relation selects ---- */
+function wireSearchableSelects(record){
+  $$('.ss-wrap').forEach(wrap=>{
+    const key = wrap.querySelector('.ss-input').dataset.ssKey;
+    const cfg = ENTITIES[currentEntity];
+    const fieldDef = cfg.fields.find(f=> f.key === key);
+    const rows = relationCache[fieldDef.relation] || [];
+    const labelField = RELATION_LABEL_FIELD[fieldDef.relation];
+    const input = wrap.querySelector('.ss-input');
+    const hidden = wrap.querySelector(`input[type=hidden][data-key="${key}"]`);
+    const dropdown = wrap.querySelector('.ss-dropdown');
+
+    function renderOptions(filterText){
+      const q = (filterText||"").trim().toLowerCase();
+      const matches = rows.filter(r=> !q || (r[labelField]||"").toLowerCase().includes(q)).slice(0,60);
+      let html = `<div class="ss-option clear" data-ss-val="">— بدون —</div>`;
+      html += matches.length
+        ? matches.map(r=>`<div class="ss-option" data-ss-val="${r.id}">${escapeHtml(r[labelField])}</div>`).join("")
+        : `<div class="ss-empty">لا نتائج</div>`;
+      dropdown.innerHTML = html;
+      dropdown.querySelectorAll('.ss-option[data-ss-val]').forEach(opt=>{
+        opt.onclick = ()=>{
+          hidden.value = opt.dataset.ssVal;
+          input.value = opt.dataset.ssVal ? opt.textContent : "";
+          dropdown.classList.remove('open');
+          modalDirty = true;
+        };
+      });
+    }
+    input.addEventListener("focus", ()=>{ renderOptions(""); dropdown.classList.add('open'); });
+    input.addEventListener("input", ()=>{ renderOptions(input.value); dropdown.classList.add('open'); if(!input.value) hidden.value=""; });
+  });
+  if(!document._ssClickWired){
+    document._ssClickWired = true;
+    document.addEventListener("click", (e)=>{
+      $$('.ss-wrap').forEach(w=>{ if(!w.contains(e.target)) w.querySelector('.ss-dropdown').classList.remove('open'); });
+    });
+  }
+}
+
+/* ---- Auto-slug generation ---- */
+function slugify(str){
+  const map = {'ا':'a','أ':'a','إ':'i','آ':'a','ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh',
+    'د':'d','ذ':'dh','ر':'r','ز':'z','س':'s','ش':'sh','ص':'s','ض':'d','ط':'t','ظ':'z','ع':'a',
+    'غ':'gh','ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n','ه':'h','و':'w','ي':'y','ة':'h',
+    'ى':'a','ء':'','ئ':'e','ؤ':'o'};
+  return str.toString().trim().toLowerCase()
+    .split('').map(ch=> map[ch] !== undefined ? map[ch] : ch).join('')
+    .replace(/[^a-z0-9\s-]/g,'')
+    .replace(/\s+/g,'-')
+    .replace(/-+/g,'-')
+    .replace(/^-|-$/g,'');
+}
+
+function wireSlugAuto(cfg){
+  const slugField = cfg.fields.find(f=> f.key === "slug");
+  if(!slugField) return;
+  const slugInput = document.querySelector(`[data-key="slug"]`);
+  if(!slugInput) return;
+  let slugTouched = !!slugInput.value; // don't override an existing/manually-set slug
+  slugInput.addEventListener("input", ()=>{ slugTouched = true; });
+
+  const sourceField = cfg.fields.find(f=> ["name_ar","title_ar","full_name_ar","name","title"].includes(f.key));
+  if(!sourceField) return;
+  const sourceInput = document.querySelector(`[data-key="${sourceField.key}"]`);
+  if(!sourceInput) return;
+  sourceInput.addEventListener("input", ()=>{
+    if(slugTouched) return;
+    let base = slugify(sourceInput.value);
+    if(!base) base = "item-" + Date.now().toString(36).slice(-5);
+    slugInput.value = base;
+  });
+}
+
+/* ---- Image dropzone (click / drag&drop / paste) ---- */
+function wireImageInputs(){
+  $$('[data-image-for]').forEach(input=>{
+    const key = input.dataset.imageFor;
+    const zone = input.closest('.dropzone');
+    const doUpload = (file)=> uploadImageFile(key, file);
+
+    input.addEventListener("change", (e)=>{ if(e.target.files[0]) doUpload(e.target.files[0]); });
+
+    if(zone){
+      ["dragenter","dragover"].forEach(evt=> zone.addEventListener(evt, (e)=>{ e.preventDefault(); zone.classList.add('dragover'); }));
+      ["dragleave","drop"].forEach(evt=> zone.addEventListener(evt, (e)=>{ e.preventDefault(); zone.classList.remove('dragover'); }));
+      zone.addEventListener("drop", (e)=>{
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if(file) doUpload(file);
+      });
+    }
+  });
+  // paste-from-clipboard support anywhere in the modal (targets the first image field)
+  const modalBody = $("#modal-body");
+  if(modalBody && !modalBody._pasteWired){
+    modalBody._pasteWired = true;
+    modalBody.addEventListener("paste", (e)=>{
+      const item = Array.from(e.clipboardData.items||[]).find(i=> i.type.startsWith("image/"));
+      if(!item) return;
+      const firstImageInput = $('[data-image-for]');
+      if(!firstImageInput) return;
+      doUploadFromClipboard(firstImageInput.dataset.imageFor, item.getAsFile());
+    });
+  }
+}
+function doUploadFromClipboard(key, file){ uploadImageFile(key, file); }
+
+async function uploadImageFile(key, file){
+  const statusEl = document.querySelector(`[data-image-status="${key}"]`);
+  const hiddenInput = document.querySelector(`input[type=hidden][data-key="${key}"]`);
+  if(statusEl) statusEl.textContent = "جارٍ الرفع...";
+  const path = `${currentEntity}/${key}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g,"_")}`;
+  const { error } = await sb.storage.from(STORAGE_BUCKET).upload(path, file, {upsert:true});
+  if(error){ if(statusEl) statusEl.textContent = "فشل الرفع: "+error.message; return; }
+  const { data:pub } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  if(hiddenInput) hiddenInput.value = pub.publicUrl;
+  if(statusEl) statusEl.textContent = "تم الرفع ✓";
+  const zone = hiddenInput ? hiddenInput.closest('.field').querySelector('.dropzone') : null;
+  if(zone && file.type.startsWith("image/")){
+    let img = zone.querySelector('img.preview');
+    if(!img){ img = document.createElement('img'); img.className = 'preview'; zone.appendChild(img); }
+    img.src = pub.publicUrl;
+  }
+  modalDirty = true;
+  toast("تم رفع الملف");
+}
+
+$("#modal-close").onclick = ()=> attemptCloseModal();
+$("#modal-cancel").onclick = ()=> attemptCloseModal();
+function attemptCloseModal(){
+  if(modalDirty && !confirm("لديك تغييرات غير محفوظة في هذا النموذج. هل تريد الإغلاق بدون حفظ؟")) return;
+  closeModal();
+}
+function closeModal(){ $("#modal-overlay").classList.remove("active"); modalDirty = false; }
+
+document.addEventListener("keydown", (e)=>{
+  if(!$("#modal-overlay").classList.contains("active")) return;
+  if(e.key === "Escape"){ attemptCloseModal(); }
+  if((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); $("#modal-save").click(); }
+});
+
+$("#modal-save").onclick = async ()=>{
+  const cfg = ENTITIES[currentEntity];
+  const payload = {};
+  const multiSelections = {};
+
+  $$('.field.invalid').forEach(el=> el.classList.remove('invalid'));
+
+  cfg.fields.forEach(f=>{
+    if(f.type === "section" || f.type === "multiselect" || f.type === "people-extra-sections") return;
+    const el = document.querySelector(`[data-key="${f.key}"]`);
+    if(!el) return;
+    if(f.type === "checkbox"){ payload[f.key] = el.checked; return; }
+    if(f.type === "tags"){
+      payload[f.key] = el.value.split(",").map(s=>s.trim()).filter(Boolean);
+      return;
+    }
+    if(f.type === "number"){
+      payload[f.key] = el.value === "" ? null : Number(el.value);
+      return;
+    }
+    if(f.type === "date-manual"){
+      payload[f.key] = el.value === "" ? null : el.value;
+      if(f.precisionKey){
+        const precisionEl = document.querySelector(`[data-field-key="${f.key}"] input[type=hidden][data-key="${f.precisionKey}"]`);
+        payload[f.precisionKey] = precisionEl ? precisionEl.value : "day";
+      }
+      return;
+    }
+    payload[f.key] = el.value === "" ? null : el.value;
+  });
+
+  if(currentEntity === "people"){
+    payload.extra_sections = peopleExtraSections;
+  }
+
+  // Required-field validation — highlight fields inline and jump to the first offending tab
+  const missing = cfg.fields.filter(f=> f.required && !payload[f.key]);
+  if(missing.length){
+    missing.forEach(f=>{
+      const wrap = document.querySelector(`[data-field-key="${f.key}"]`);
+      if(wrap) wrap.classList.add('invalid');
+    });
+    setModalMsg(`الحقول التالية مطلوبة: ${missing.map(f=>f.label).join("، ")}`, true);
+    const firstWrap = document.querySelector(`[data-field-key="${missing[0].key}"]`);
+    const panel = firstWrap ? firstWrap.closest('.modal-tab-panel') : null;
+    if(panel){ switchTab(Number(panel.dataset.panel)); }
+    if(firstWrap) firstWrap.scrollIntoView({behavior:"smooth", block:"center"});
+    return;
+  }
+
+  cfg.fields.forEach(f=>{
+    if(f.type !== "multiselect") return;
+    const checked = $$(`[data-multikey="${f.key}"]:checked`).map(el=> el.value);
+    multiSelections[f.key] = checked;
+  });
+
+  $("#modal-save").textContent = "جارٍ الحفظ...";
+  let resultId = editingId;
+  try{
+    if(editingId){
+      const { error } = await sb.from(cfg.table).update(payload).eq("id", editingId);
+      if(error) throw error;
+    } else {
+      const { data, error } = await sb.from(cfg.table).insert(payload).select("id").single();
+      if(error) throw error;
+      resultId = data.id;
+    }
+
+    // Sync junction tables (delete-all-then-insert — simple & correct for admin-scale data)
+    for(const f of cfg.fields){
+      if(f.type !== "multiselect") continue;
+      const fk = idColumnFor(cfg.table);
+      await sb.from(f.junction).delete().eq(fk, resultId);
+      const rows = multiSelections[f.key].map(relId=> ({ [fk]: resultId, [f.junctionKey]: relId }));
+      if(rows.length){
+        const { error:jErr } = await sb.from(f.junction).insert(rows);
+        if(jErr) throw jErr;
+      }
+    }
+
+    toast(editingId ? "تم تحديث العنصر" : "تم إضافة العنصر بنجاح");
+    modalDirty = false;
+    closeModal();
+    await loadEntityRows(currentEntity);
+    refreshCounts();
+  }catch(err){
+    setModalMsg("خطأ: "+err.message, true);
+  }
+  $("#modal-save").textContent = "حفظ";
+};
+
+function setModalMsg(msg, isError){
+  const el = $("#modal-msg");
+  el.textContent = msg;
+  el.className = "form-msg " + (isError?"error":"ok");
+}
+
+/* ============================================================
+   Media library (browse everything in the storage bucket)
+   ============================================================ */
+async function showMediaLibrary(){
+  currentEntity = null;
+  setActiveNav("__media");
+  $("#page-title").textContent = "مكتبة الوسائط";
+  $("#page-desc").textContent = "كل الصور والملفات المرفوعة عبر النماذج، مصنّفة حسب القسم";
+  $("#add-btn").style.display = "none";
+
+  const { data, error } = await sb.storage.from(STORAGE_BUCKET).list("", {limit:1000, sortBy:{column:"created_at", order:"desc"}});
+  const content = $("#content");
+  if(error || !data){
+    content.innerHTML = `<div class="empty-state">تعذّر تحميل مكتبة الوسائط</div>`;
+    return;
+  }
+  // list top-level "folders" (entity keys) and recurse one level
+  let allFiles = [];
+  for(const entry of data){
+    if(entry.id === null){ // folder
+      const { data:sub } = await sb.storage.from(STORAGE_BUCKET).list(entry.name, {limit:1000});
+      for(const s of sub||[]){
+        if(s.id === null){
+          const { data:sub2 } = await sb.storage.from(STORAGE_BUCKET).list(`${entry.name}/${s.name}`, {limit:1000});
+          (sub2||[]).forEach(f=> allFiles.push(`${entry.name}/${s.name}/${f.name}`));
+        } else {
+          allFiles.push(`${entry.name}/${s.name}`);
+        }
+      }
+    }
+  }
+  if(!allFiles.length){
+    content.innerHTML = `<div class="empty-state"><div class="display">لا توجد ملفات مرفوعة بعد</div>ستظهر هنا كل الصور التي ترفعها من نماذج الإضافة</div>`;
+    return;
+  }
+  content.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;">
+    ${allFiles.map(path=>{
+      const { data:pub } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      const isImg = /\.(png|jpe?g|webp|gif|svg)$/i.test(path);
+      return `<div class="stat-card" style="padding:10px;">
+        ${isImg ? `<img src="${pub.publicUrl}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;">`
+                : `<div style="height:100px;display:flex;align-items:center;justify-content:center;color:var(--ink-dim);font-size:12px;">ملف</div>`}
+        <div style="font-size:11px;color:var(--ink-dim);margin-top:6px;word-break:break-all;">${path.split("/").pop()}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+/* ============================================================
+   Settings (own admin profile)
+   ============================================================ */
+async function showSettings(){
+  currentEntity = null;
+  setActiveNav("__settings");
+  $("#page-title").textContent = "الإعدادات";
+  $("#page-desc").textContent = "بيانات حساب المشرف الخاص بك";
+  $("#add-btn").style.display = "none";
+
+  const { data, error } = await sb.from("admins").select("full_name").eq("user_id", currentUser.id).maybeSingle();
+  const content = $("#content");
+  content.innerHTML = `
+    <div class="settings-card">
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input type="email" value="${escapeHtml(currentUser.email)}" disabled>
+      </div>
+      <div class="field">
+        <label>الاسم الكامل</label>
+        <input type="text" id="settings-full-name" value="${escapeHtml((data&&data.full_name)||"")}">
+      </div>
+      <button class="btn btn-gold" id="settings-save-btn">حفظ التغييرات</button>
+      <div class="form-msg" id="settings-msg"></div>
+    </div>`;
+  if(error){ toast("تعذّر تحميل بيانات الحساب: "+error.message, true); }
+
+  $("#settings-save-btn").onclick = async ()=>{
+    const fullName = $("#settings-full-name").value.trim();
+    const { error:upErr } = await sb.from("admins").update({ full_name: fullName }).eq("user_id", currentUser.id);
+    const msg = $("#settings-msg");
+    if(upErr){ msg.className = "form-msg error"; msg.textContent = "خطأ: "+upErr.message; return; }
+    currentAdminName = fullName;
+    $("#avatar-name").textContent = fullName || "المشرف";
+    msg.className = "form-msg ok"; msg.textContent = "تم حفظ التغييرات بنجاح";
+    toast("تم تحديث بيانات الحساب");
+  };
+}
+
+/* ============================================================
+   Users (read-only list of admins table)
+   ============================================================ */
+async function showUsers(){
+  currentEntity = null;
+  setActiveNav("__users");
+  $("#page-title").textContent = "المستخدمون";
+  $("#page-desc").textContent = "قائمة المشرفين المصرح لهم بالدخول إلى لوحة التحكم";
+  $("#add-btn").style.display = "none";
+
+  const { data, error } = await sb.from("admins").select("user_id, full_name");
+  const content = $("#content");
+  if(error){
+    content.innerHTML = `<div class="empty-state">تعذّر تحميل قائمة المستخدمين</div>`;
+    return;
+  }
+  content.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>الاسم الكامل</th><th>معرّف المستخدم (User ID)</th></tr></thead>
+      <tbody>${(data||[]).map(u=>
+        `<tr><td data-label="الاسم الكامل">${escapeHtml(u.full_name || "—")}</td><td data-label="معرّف المستخدم" style="direction:ltr;text-align:left;font-size:12px;color:var(--ink-dim);">${u.user_id}</td></tr>`
+      ).join("") || `<tr><td colspan="2"><div class="empty-state">لا يوجد مستخدمون</div></td></tr>`}</tbody>
+    </table></div>
+    <div class="hint" style="margin-top:14px;">لإضافة مشرف جديد: أنشئ له حسابًا من Supabase Authentication ثم أضف صفًا بمعرّف المستخدم (User ID) في جدول admins.</div>`;
+}
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+function escapeHtml(str){
+  if(str === null || str === undefined) return "";
+  return String(str).replace(/[&<>"']/g, s=> ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[s]));
+}
+function formatDate(d){
+  if(!d) return "—";
+  try{ return new Date(d).toLocaleDateString("ar-EG", {year:"numeric", month:"short", day:"numeric"}); }
+  catch(e){ return d; }
+}
+
+initAuth();
+</script>
+</body>
+</html>
